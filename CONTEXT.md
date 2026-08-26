@@ -23,3 +23,15 @@ _Avoid_: Retailer integration, retailer activation
 **Affiliate link**:
 An outbound link carrying program-approved attribution for Babyboel without changing the offer, destination, inclusion, or ranking.
 _Avoid_: Redirect, monetized offer
+
+**Current offer**:
+An offer whose price, availability, conditions, and outbound destination were confirmed within the 48-hour freshness window.
+_Avoid_: Live price, real-time price
+
+**Retailer coverage status**:
+The public acquisition state of a retailer: active, temporarily paused, or not yet active. It is independent from affiliate-program status.
+_Avoid_: Supported retailer, affiliate retailer
+
+**Observed price change**:
+A factual difference between recorded prices at different observation times, without inferring a promotion.
+_Avoid_: Discount, sale, aanbieding, korting
