@@ -1,0 +1,53 @@
+{
+  "name": "babyboel",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.7.0",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "pnpm format:check && pnpm lint && pnpm validate:config && pnpm validate:migrations && pnpm cf-typegen:check && pnpm typecheck && pnpm test && pnpm build",
+    "cf-typegen": "wrangler types",
+    "cf-typegen:check": "pnpm cf-typegen && git diff --exit-code -- worker-configuration.d.ts",
+    "validate:config": "tsx scripts/validate-config.ts",
+    "validate:migrations": "node scripts/validate-migrations.mjs",
+    "dev:scheduled": "vite dev",
+    "deploy:preview": "CLOUDFLARE_ENV=preview pnpm build && CLOUDFLARE_ENV=preview wrangler deploy",
+    "deploy:production": "CLOUDFLARE_ENV=production pnpm build && CLOUDFLARE_ENV=production wrangler deploy"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "latest",
+    "@tanstack/react-start": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "latest",
+    "@eslint/js": "latest",
+    "@types/node": "^24.13.3",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest",
+    "@vitejs/plugin-react": "latest",
+    "eslint": "latest",
+    "eslint-plugin-react-hooks": "latest",
+    "globals": "latest",
+    "jsonc-parser": "^3.3.1",
+    "prettier": "latest",
+    "tsx": "^4.23.12",
+    "typescript": "^6.0.3",
+    "vite": "latest",
+    "vitest": "latest",
+    "wrangler": "latest"
+  }
+}

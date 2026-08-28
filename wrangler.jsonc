@@ -1,0 +1,103 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "babyboel",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-08-28",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "head_sampling_rate": 1,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+  "vars": {
+    "APP_ENV": "local",
+    "ACQUISITION_MODE": "fixture",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "babyboel-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "EVIDENCE",
+      "bucket_name": "babyboel-evidence-local",
+    },
+  ],
+  "send_email": [
+    {
+      "name": "OPS_EMAIL",
+    },
+  ],
+  "triggers": {
+    "crons": ["17 0,6,12,18 * * *"],
+  },
+  "env": {
+    "preview": {
+      "name": "babyboel-preview",
+      "vars": {
+        "APP_ENV": "preview",
+        "ACQUISITION_MODE": "fixture",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "babyboel-preview",
+          "database_id": "11111111-1111-1111-1111-111111111111",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "EVIDENCE",
+          "bucket_name": "babyboel-evidence-preview",
+        },
+      ],
+      "send_email": [
+        {
+          "name": "OPS_EMAIL",
+        },
+      ],
+      "triggers": {
+        "crons": [],
+      },
+    },
+    "production": {
+      "name": "babyboel-production",
+      "vars": {
+        "APP_ENV": "production",
+        "ACQUISITION_MODE": "disabled",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "babyboel-production",
+          "database_id": "22222222-2222-2222-2222-222222222222",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "EVIDENCE",
+          "bucket_name": "babyboel-evidence-production",
+        },
+      ],
+      "send_email": [
+        {
+          "name": "OPS_EMAIL",
+        },
+      ],
+      "triggers": {
+        "crons": ["17 0,6,12,18 * * *"],
+      },
+    },
+  },
+}

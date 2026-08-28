@@ -1,0 +1,92 @@
+name: Delivery
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  preview:
+    name: Fixture-only preview
+    if: github.event_name == 'pull_request'
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: preview
+    concurrency:
+      group: babyboel-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      HAS_CLOUDFLARE_CREDENTIALS: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: CLOUDFLARE_ENV=preview pnpm build
+      - name: Deploy preview when credentials are provisioned
+        if: env.HAS_CLOUDFLARE_CREDENTIALS == 'true'
+        run: CLOUDFLARE_ENV=preview pnpm exec wrangler deploy
+
+  production:
+    name: Production deployment
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: babyboel-production
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      HAS_CLOUDFLARE_CREDENTIALS: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+      PUBLIC_SMOKE_URL: ${{ vars.PUBLIC_SMOKE_URL }}
+      PROTECTED_SMOKE_URL: ${{ vars.PROTECTED_SMOKE_URL }}
+      PROTECTED_SMOKE_TOKEN: ${{ secrets.PROTECTED_SMOKE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: CLOUDFLARE_ENV=production pnpm build
+      - name: Apply backward-compatible migrations
+        if: env.HAS_CLOUDFLARE_CREDENTIALS == 'true'
+        run: CLOUDFLARE_ENV=production pnpm exec wrangler d1 migrations apply DB --remote
+      - name: Deploy Worker
+        if: env.HAS_CLOUDFLARE_CREDENTIALS == 'true'
+        run: CLOUDFLARE_ENV=production pnpm exec wrangler deploy
+      - name: Public smoke check
+        if: env.HAS_CLOUDFLARE_CREDENTIALS == 'true' && env.PUBLIC_SMOKE_URL != ''
+        run: curl --fail --show-error --silent "$PUBLIC_SMOKE_URL"
+      - name: Protected smoke check
+        if: env.HAS_CLOUDFLARE_CREDENTIALS == 'true' && env.PROTECTED_SMOKE_URL != '' && env.PROTECTED_SMOKE_TOKEN != ''
+        run: >-
+          curl --fail --show-error --silent
+          --header "Authorization: Bearer $PROTECTED_SMOKE_TOKEN"
+          "$PROTECTED_SMOKE_URL"
