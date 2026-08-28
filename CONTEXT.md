@@ -4,6 +4,14 @@ Babyboel compares evidence-backed Dutch retail offers for diapers, diaper pants,
 
 ## Language
 
+**Product**:
+An exact comparable consumer product identity defined by brand, category, marketed line or variant, and normalized size where applicable, independently of package quantity and retailer.
+_Avoid_: Package, listing, substitute
+
+**Package**:
+A packaged quantity and composition of one product, optionally identified by a verified GTIN.
+_Avoid_: Product, listing, offer
+
 **Listing**:
 A retailer-, channel-, seller-, and retailer-SKU-specific presentation of one package.
 _Avoid_: Product, offer
@@ -27,6 +35,10 @@ _Avoid_: Redirect, monetized offer
 **Current offer**:
 An offer whose price, availability, conditions, and outbound destination were confirmed within the 48-hour freshness window.
 _Avoid_: Live price, real-time price
+
+**Normalized size**:
+Babyboel's exact comparable size for disposable diapers and diaper pants; plus sizes such as 4+ remain distinct from their base size.
+_Avoid_: Weight range, age stage, nearest size
 
 **Retailer coverage status**:
 The public acquisition state of a retailer: active, temporarily paused, or not yet active. It is independent from affiliate-program status.
