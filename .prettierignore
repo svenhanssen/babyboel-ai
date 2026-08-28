@@ -1,0 +1,12 @@
+dist
+.output
+.tanstack
+.wrangler
+node_modules
+.pnpm-store
+pnpm-lock.yaml
+src/routeTree.gen.ts
+worker-configuration.d.ts
+AGENTS.md
+CONTEXT.md
+docs
