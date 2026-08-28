@@ -20,6 +20,14 @@ _Avoid_: Product, offer
 The price, availability, purchase conditions, and effective period under which a listing can be bought.
 _Avoid_: Listing, product
 
+**Universal offer**:
+An offer available to any shopper without membership, coupon, subscription, personalization, or another eligibility restriction; an explicit identical-package multi-buy may still be universal.
+_Avoid_: Unconditional quantity, single-package offer
+
+**Restricted offer**:
+An offer available only when the shopper meets an eligibility condition such as membership, coupon use, app activation, or subscription; it never enters Babyboel's primary ranking.
+_Avoid_: Universal offer, unavailable offer
+
 **Outbound destination**:
 The verified retailer URL for the exact listing and seller represented by an offer.
 _Avoid_: Affiliate URL, product URL
