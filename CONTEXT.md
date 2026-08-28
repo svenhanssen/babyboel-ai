@@ -48,6 +48,14 @@ _Avoid_: Live price, real-time price
 Babyboel's exact comparable size for disposable diapers and diaper pants; plus sizes such as 4+ remain distinct from their base size.
 _Avoid_: Weight range, age stage, nearest size
 
+**Source authorization**:
+The documented permission and legal/contractual basis for Babyboel to acquire, retain, and use a retailer's data through a specific channel.
+_Avoid_: Public accessibility, affiliate approval
+
+**Retailer activation**:
+The operator decision to ingest and publish a retailer after its source authorization, adapter reliability, and data-quality gates pass; it is independent from affiliate-program status.
+_Avoid_: Adapter implementation, affiliate approval
+
 **Retailer coverage status**:
 The public acquisition state of a retailer: active, temporarily paused, or not yet active. It is independent from affiliate-program status.
 _Avoid_: Supported retailer, affiliate retailer
