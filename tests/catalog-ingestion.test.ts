@@ -87,9 +87,9 @@ describe('catalog ingestion D1 boundary', () => {
         responseIntegrityHash: 'sha256:offer-update',
         issueCodes: [],
         normalizedFacts: {
-          payableAmountMinor: 1_799,
-          totalUnits: 160,
-          requiredPackageCount: 2,
+          payableAmountMinor: 1,
+          totalUnits: 1,
+          requiredPackageCount: 1,
           eligibility: 'universal',
           availability: 'available',
         },
@@ -113,9 +113,21 @@ describe('catalog ingestion D1 boundary', () => {
         amount: number
         totalUnits: number
         observationId: string
+        observedAmount: number
+        observedUnits: number
       }>(`
         SELECT payable_amount_minor AS amount, total_units AS totalUnits,
-          latest_observation_id AS observationId
+          latest_observation_id AS observationId,
+          json_extract(
+            (SELECT normalized_facts_json FROM source_observations
+             WHERE id = offers.latest_observation_id),
+            '$.payableAmountMinor'
+          ) AS observedAmount,
+          json_extract(
+            (SELECT normalized_facts_json FROM source_observations
+             WHERE id = offers.latest_observation_id),
+            '$.totalUnits'
+          ) AS observedUnits
         FROM offers
         WHERE id = '018f47a0-0000-7000-8000-000000000007'
       `),
@@ -124,6 +136,8 @@ describe('catalog ingestion D1 boundary', () => {
         amount: 1799,
         totalUnits: 160,
         observationId: '018f47a0-0000-7000-8000-000000000034',
+        observedAmount: 1799,
+        observedUnits: 160,
       },
     ])
   }, 20_000)
@@ -292,6 +306,12 @@ describe('catalog ingestion D1 boundary', () => {
         retailerSourceId: '018f47a0-0000-7000-8000-00000000003e',
       }),
     ).rejects.toThrow('OBSERVATION_RETAILER_MISMATCH')
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...validInput,
+        sourceListingKey: 'ANOTHER-SKU',
+      }),
+    ).rejects.toThrow('OBSERVATION_LISTING_MISMATCH')
   })
 
   it('retains contradictory price evidence and quarantines the Offer into Review', async () => {

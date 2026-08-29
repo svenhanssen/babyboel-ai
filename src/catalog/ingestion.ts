@@ -119,27 +119,28 @@ const prepareSourceObservationInsert = (
       input.adapterIdentifier,
     )
 
-const assertObservationBelongsToRetailer = async (
+const assertObservationScope = async (
   database: Env['DB'],
   input: Pick<
     z.output<typeof sourceObservationSchema>,
     'retailerSourceId' | 'retailerRunId'
   >,
-  retailerId: string,
+  retailerId: string | null,
 ) => {
   const scope = await database
     .prepare(
-      `SELECT retailer_sources.id
+      `SELECT retailer_sources.retailer_id AS retailerId
        FROM retailer_sources
        JOIN retailer_runs
          ON retailer_runs.id = ?
          AND retailer_runs.retailer_id = retailer_sources.retailer_id
-       WHERE retailer_sources.id = ?
-         AND retailer_sources.retailer_id = ?`,
+       WHERE retailer_sources.id = ?`,
     )
-    .bind(input.retailerRunId, input.retailerSourceId, retailerId)
-    .first()
-  if (!scope) throw new Error('OBSERVATION_RETAILER_MISMATCH')
+    .bind(input.retailerRunId, input.retailerSourceId)
+    .first<{ retailerId: string }>()
+  if (!scope || (retailerId !== null && scope.retailerId !== retailerId)) {
+    throw new Error('OBSERVATION_RETAILER_MISMATCH')
+  }
 }
 
 export async function recordIdentityObservation(
@@ -150,6 +151,7 @@ export async function recordIdentityObservation(
   if (input.sourceOfferKey !== 'identity') {
     throw new Error('IDENTITY_OBSERVATION_LANE_REQUIRED')
   }
+  await assertObservationScope(database, input, null)
   const existing = await findObservation(database, input)
   if (existing) return { id: existing.id, inserted: false as const }
 
@@ -211,7 +213,8 @@ export async function ingestValidatedOfferObservation(
     .prepare(
       `SELECT packages.unit_count AS packageUnitCount,
         listings.match_status AS matchStatus, products.id AS productId,
-        listings.retailer_id AS retailerId
+        listings.retailer_id AS retailerId,
+        listings.retailer_sku AS retailerSku
        FROM listings
        JOIN packages ON packages.id = listings.package_id
        JOIN products ON products.id = packages.product_id
@@ -224,11 +227,15 @@ export async function ingestValidatedOfferObservation(
       matchStatus: string
       productId: string
       retailerId: string
+      retailerSku: string
     }>()
   if (!listing || listing.matchStatus !== 'matched') {
     throw new Error('LISTING_NOT_PUBLISHABLE')
   }
-  await assertObservationBelongsToRetailer(database, input, listing.retailerId)
+  await assertObservationScope(database, input, listing.retailerId)
+  if (input.sourceListingKey !== listing.retailerSku) {
+    throw new Error('OBSERVATION_LISTING_MISMATCH')
+  }
   const price = calculateOfferPrice({
     payableAmountMinor: input.payableAmountMinor,
     packageUnitCount: listing.packageUnitCount,
@@ -252,6 +259,11 @@ export async function ingestValidatedOfferObservation(
         ...input.normalizedFacts,
         productId: listing.productId,
         outboundDestination: input.outboundDestination,
+        payableAmountMinor: input.payableAmountMinor,
+        totalUnits: price.totalUnits,
+        requiredPackageCount: price.requiredPackageCount,
+        eligibility: input.eligibility,
+        availability: input.availability,
       },
     }).run()
     return { status: 'historical' as const, offerId: input.offerId }
@@ -316,6 +328,11 @@ export async function ingestValidatedOfferObservation(
       ...input.normalizedFacts,
       productId: listing.productId,
       outboundDestination: input.outboundDestination,
+      payableAmountMinor: input.payableAmountMinor,
+      totalUnits: price.totalUnits,
+      requiredPackageCount: price.requiredPackageCount,
+      eligibility: input.eligibility,
+      availability: input.availability,
     },
   })
   const linkOffer = database
@@ -370,11 +387,17 @@ export async function quarantineOfferObservation(
     return { status: 'unchanged' as const, observationId: duplicate.id }
   }
   const listing = await database
-    .prepare('SELECT retailer_id AS retailerId FROM listings WHERE id = ?')
+    .prepare(
+      `SELECT retailer_id AS retailerId, retailer_sku AS retailerSku
+       FROM listings WHERE id = ?`,
+    )
     .bind(input.listingId)
-    .first<{ retailerId: string }>()
+    .first<{ retailerId: string; retailerSku: string }>()
   if (!listing) throw new Error('LISTING_NOT_FOUND')
-  await assertObservationBelongsToRetailer(database, input, listing.retailerId)
+  await assertObservationScope(database, input, listing.retailerId)
+  if (input.sourceListingKey !== listing.retailerSku) {
+    throw new Error('OBSERVATION_LISTING_MISMATCH')
+  }
   if (input.offerId !== null) {
     const offer = await database
       .prepare(
@@ -535,11 +558,14 @@ export async function matchObservedListing(
         source_observations.issue_codes_json AS issueCodes,
         source_observations.source_listing_key AS sourceListingKey,
         retailer_sources.retailer_id AS retailerId,
+        retailer_runs.retailer_id AS runRetailerId,
         retailer_sources.acquisition_method AS acquisitionMethod,
         retailer_sources.authorization_status AS authorizationStatus
        FROM source_observations
        JOIN retailer_sources
          ON retailer_sources.id = source_observations.retailer_source_id
+       JOIN retailer_runs
+         ON retailer_runs.id = source_observations.retailer_run_id
        WHERE source_observations.id = ?`,
     )
     .bind(input.observationId)
@@ -550,12 +576,14 @@ export async function matchObservedListing(
       issueCodes: string
       sourceListingKey: string
       retailerId: string
+      runRetailerId: string
       acquisitionMethod: string
       authorizationStatus: string
     }>()
   if (
     !sourceObservation ||
     sourceObservation.retailerId !== listing.retailerId ||
+    sourceObservation.runRetailerId !== listing.retailerId ||
     sourceObservation.sourceListingKey !== listing.retailerSku
   ) {
     throw new Error('OBSERVATION_LISTING_MISMATCH')
