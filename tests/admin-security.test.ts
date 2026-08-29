@@ -121,6 +121,39 @@ describe('Cloudflare Access assertion verification', () => {
     ).rejects.toThrow('ACCESS_DENIED')
   })
 
+  it('rejects an assertion without a not-before claim', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg: 'RS256', kid: 'fixture-key' })
+      .setIssuer(issuer)
+      .setAudience(productionEnvironment.ACCESS_AUD)
+      .setSubject(productionEnvironment.ACCESS_OPERATOR_SUBJECT)
+      .setIssuedAt(now)
+      .setExpirationTime(now + 300)
+      .sign(privateKey)
+
+    await expect(
+      verifyAccessAssertion(token, productionEnvironment, getKey),
+    ).rejects.toThrow('ACCESS_DENIED')
+  })
+
+  it('rejects an assertion issued in the future', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg: 'RS256', kid: 'fixture-key' })
+      .setIssuer(issuer)
+      .setAudience(productionEnvironment.ACCESS_AUD)
+      .setSubject(productionEnvironment.ACCESS_OPERATOR_SUBJECT)
+      .setIssuedAt(now + 300)
+      .setNotBefore(now - 1)
+      .setExpirationTime(now + 600)
+      .sign(privateKey)
+
+    await expect(
+      verifyAccessAssertion(token, productionEnvironment, getKey),
+    ).rejects.toThrow('ACCESS_DENIED')
+  })
+
   it.each(['', 'not-a-jwt'])('rejects a malformed assertion', async (token) => {
     await expect(
       verifyAccessAssertion(token, productionEnvironment, getKey),

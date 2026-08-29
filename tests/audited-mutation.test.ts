@@ -1,6 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { commitAuditedMutation } from '../src/security/audited-mutation'
+import {
+  createApplicationSecurityBoundary,
+  requireAdminContext,
+  type AdminContext,
+  type SecurityEnvironment,
+} from '../src/security/admin-boundary'
+import {
+  commitAuditedMutation,
+  createAuditSummary,
+  type SafeAuditSummary,
+} from '../src/security/audited-mutation'
 
 type BoundStatement = {
   sql: string
@@ -39,24 +49,53 @@ class TransactionalDatabase {
   }
 }
 
-const input = {
-  actor: {
-    actorId: 'github|operator',
-    requestId: 'request-123',
-  },
-  auditId: '018f47a0-0000-7000-8000-000000000099',
-  occurredAt: 1_787_990_400_000,
-  action: 'listing.correct',
-  reason: 'Correct an observed catalog fact',
-  target: {
-    type: 'listing',
-    id: '018f47a0-0000-7000-8000-000000000006',
-  },
-  before: { availability: 'unknown' },
-  after: { availability: 'available' },
-}
+type MutationInput = Parameters<typeof commitAuditedMutation>[2]
+
+let input: MutationInput
 
 describe('audited Admin mutations', () => {
+  beforeAll(async () => {
+    let actor: AdminContext | undefined
+    const boundary = createApplicationSecurityBoundary(
+      (request) => {
+        actor = requireAdminContext(request)
+        return new Response('ok')
+      },
+      { generateRequestId: () => 'request-123' },
+    )
+    const environment: SecurityEnvironment = {
+      APP_ENV: 'local',
+      ACCESS_TEAM_DOMAIN: 'local.invalid',
+      ACCESS_AUD: 'local-unused',
+      ACCESS_OPERATOR_SUBJECT: 'local-operator',
+      TRUSTED_ORIGIN: 'http://localhost:3000',
+    }
+
+    await boundary(
+      new Request('http://localhost:3000/admin', {
+        headers: { 'X-Babyboel-Local-Actor': 'local-operator' },
+      }),
+      environment,
+    )
+    if (!actor) throw new Error('Unable to establish Admin context')
+
+    input = {
+      actor,
+      auditId: '018f47a0-0000-7000-8000-000000000099',
+      occurredAt: 1_787_990_400_000,
+      action: 'listing.correct',
+      reason: 'Correct an observed catalog fact',
+      target: {
+        type: 'listing',
+        id: '018f47a0-0000-7000-8000-000000000006',
+      },
+      before: createAuditSummary({ availability: 'unknown' }, ['availability']),
+      after: createAuditSummary({ availability: 'available' }, [
+        'availability',
+      ]),
+    }
+  })
+
   it('commits the state change and compact audit fact in one batch', async () => {
     const database = new TransactionalDatabase()
     const mutation = database.prepare('UPDATE target').bind()
@@ -98,6 +137,10 @@ describe('audited Admin mutations', () => {
   it('rejects oversized summaries before touching the database', async () => {
     const database = new TransactionalDatabase()
     const batch = vi.spyOn(database, 'batch')
+    const fields = Array.from({ length: 10 }, (_, index) => `field${index}`)
+    const source = Object.fromEntries(
+      fields.map((field) => [field, 'x'.repeat(500)]),
+    )
 
     await expect(
       commitAuditedMutation(
@@ -105,7 +148,7 @@ describe('audited Admin mutations', () => {
         [database.prepare('UPDATE target').bind()],
         {
           ...input,
-          after: { unsafe: 'x'.repeat(5_000) },
+          after: createAuditSummary(source, fields),
         },
       ),
     ).rejects.toThrow('AUDIT_SUMMARY_TOO_LARGE')
@@ -113,9 +156,21 @@ describe('audited Admin mutations', () => {
     expect(batch).not.toHaveBeenCalled()
   })
 
-  it('rejects secret-bearing audit summaries before touching the database', async () => {
+  it('rejects secret-bearing audit summaries before touching the database', () => {
     const database = new TransactionalDatabase()
     const batch = vi.spyOn(database, 'batch')
+
+    expect(() =>
+      createAuditSummary({ evidence: '<retained retailer response>' }, [
+        'evidence',
+      ]),
+    ).toThrow('AUDIT_SUMMARY_UNSAFE')
+
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('rejects an untrusted summary object at the transaction boundary', async () => {
+    const database = new TransactionalDatabase()
 
     await expect(
       commitAuditedMutation(
@@ -123,12 +178,12 @@ describe('audited Admin mutations', () => {
         [database.prepare('UPDATE target').bind()],
         {
           ...input,
-          after: { access_token: 'must-not-be-persisted' },
+          after: {
+            availability: 'available',
+          } as unknown as SafeAuditSummary,
         },
       ),
     ).rejects.toThrow('AUDIT_SUMMARY_UNSAFE')
-
-    expect(batch).not.toHaveBeenCalled()
   })
 
   it('requires at least one state-changing statement', async () => {

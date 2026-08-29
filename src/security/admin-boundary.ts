@@ -8,9 +8,12 @@ export type SecurityEnvironment = {
   TRUSTED_ORIGIN: string
 }
 
+const adminContextBrand: unique symbol = Symbol('AdminContext')
+
 export type AdminContext = {
-  actorId: string
-  requestId: string
+  readonly actorId: string
+  readonly requestId: string
+  readonly [adminContextBrand]: true
 }
 
 type ApplicationHandler = (request: Request) => Response | Promise<Response>
@@ -58,12 +61,16 @@ export async function verifyAccessAssertion(
       audience: environment.ACCESS_AUD,
       issuer: accessIssuer(environment),
     })
+    const now = Math.floor(Date.now() / 1_000)
 
     if (
       typeof result.payload.sub !== 'string' ||
       result.payload.sub !== environment.ACCESS_OPERATOR_SUBJECT ||
       typeof result.payload.iat !== 'number' ||
+      typeof result.payload.nbf !== 'number' ||
       typeof result.payload.exp !== 'number' ||
+      result.payload.iat > now + 60 ||
+      result.payload.exp <= result.payload.iat ||
       result.payload.exp - result.payload.iat > 8 * 60 * 60
     ) {
       throw new AccessDeniedError()
@@ -79,6 +86,12 @@ export function requireAdminContext(request: Request): AdminContext {
   const context = adminContexts.get(request)
   if (!context) throw new Error('ADMIN_CONTEXT_REQUIRED')
   return context
+}
+
+export function assertTrustedAdminContext(context: AdminContext): void {
+  if (context[adminContextBrand] !== true) {
+    throw new Error('ADMIN_CONTEXT_REQUIRED')
+  }
 }
 
 const isAdminPath = (pathname: string) =>
@@ -298,7 +311,11 @@ export function createApplicationSecurityBoundary(
         applicationRequest = new Request(request, { body })
       }
 
-      adminContexts.set(applicationRequest, { actorId, requestId })
+      adminContexts.set(applicationRequest, {
+        actorId,
+        requestId,
+        [adminContextBrand]: true,
+      })
       const response = responseWithSecurityHeaders(
         await application(applicationRequest),
         environment,

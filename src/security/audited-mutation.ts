@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { AdminContext } from './admin-boundary'
+import { assertTrustedAdminContext, type AdminContext } from './admin-boundary'
 
 type PreparedStatement<Statement> = {
   bind: (...values: unknown[]) => Statement
@@ -11,7 +11,49 @@ type BatchDatabase<Statement> = {
   batch: (statements: Statement[]) => Promise<unknown>
 }
 
-const summarySchema = z.record(z.string(), z.unknown())
+const auditSummaryBrand: unique symbol = Symbol('SafeAuditSummary')
+const unsafeSummaryKey =
+  /(authorization|cookie|credential|password|secret|token|assertion|api.?key|private.?key|headers|raw|evidence)/i
+const summaryValueSchema = z.union([
+  z.string().max(500),
+  z.number().finite(),
+  z.boolean(),
+  z.null(),
+])
+const summarySchema = z.record(z.string(), summaryValueSchema)
+
+export type SafeAuditSummary = Record<
+  string,
+  z.infer<typeof summaryValueSchema>
+> & {
+  readonly [auditSummaryBrand]: true
+}
+
+export function createAuditSummary(
+  source: Record<string, unknown>,
+  includedFields: readonly string[],
+): SafeAuditSummary {
+  if (includedFields.length === 0 || includedFields.length > 20) {
+    throw new Error('AUDIT_SUMMARY_FIELDS_INVALID')
+  }
+
+  const summary: Record<string, z.infer<typeof summaryValueSchema>> = {}
+  for (const field of includedFields) {
+    if (
+      unsafeSummaryKey.test(field) ||
+      !Object.hasOwn(source, field) ||
+      Object.hasOwn(summary, field)
+    ) {
+      throw new Error('AUDIT_SUMMARY_UNSAFE')
+    }
+    summary[field] = summaryValueSchema.parse(source[field])
+  }
+
+  return Object.defineProperty(summary, auditSummaryBrand, {
+    value: true,
+  }) as SafeAuditSummary
+}
+
 const auditInputSchema = z.object({
   actor: z.object({
     actorId: z.string().min(1).max(200),
@@ -33,37 +75,19 @@ const auditInputSchema = z.object({
   after: summarySchema.nullable(),
 })
 
-type AuditedMutationInput = {
+type AuditedMutationInput = Omit<
+  z.input<typeof auditInputSchema>,
+  'actor' | 'before' | 'after'
+> & {
   actor: AdminContext
-  auditId: string
-  occurredAt: number
-  action: string
-  reason: string
-  target: {
-    type: string
-    id: string
-  }
-  before: Record<string, unknown> | null
-  after: Record<string, unknown> | null
+  before: SafeAuditSummary | null
+  after: SafeAuditSummary | null
 }
 
-const encodeSummary = (summary: Record<string, unknown> | null) => {
+const encodeSummary = (summary: SafeAuditSummary | null) => {
   if (summary === null) return null
-
-  const unsafeKey =
-    /(authorization|cookie|credential|password|secret|token|assertion|api.?key|private.?key|headers|raw.?body)/i
-  const pending: unknown[] = [summary]
-  const visited = new WeakSet<object>()
-  while (pending.length > 0) {
-    const value = pending.pop()
-    if (!value || typeof value !== 'object') continue
-    if (visited.has(value)) throw new Error('AUDIT_SUMMARY_UNSAFE')
-    visited.add(value)
-
-    for (const [key, nested] of Object.entries(value)) {
-      if (unsafeKey.test(key)) throw new Error('AUDIT_SUMMARY_UNSAFE')
-      if (nested && typeof nested === 'object') pending.push(nested)
-    }
+  if (summary[auditSummaryBrand] !== true) {
+    throw new Error('AUDIT_SUMMARY_UNSAFE')
   }
 
   const encoded = JSON.stringify(summary)
@@ -82,13 +106,14 @@ export async function commitAuditedMutation<Statement>(
     throw new Error('AUDITED_MUTATION_REQUIRED')
   }
 
+  assertTrustedAdminContext(input.actor)
   const audit = auditInputSchema.parse(input)
   if (audit.before === null && audit.after === null) {
     throw new Error('AUDIT_CHANGE_REQUIRED')
   }
 
-  const beforeJson = encodeSummary(audit.before)
-  const afterJson = encodeSummary(audit.after)
+  const beforeJson = encodeSummary(input.before)
+  const afterJson = encodeSummary(input.after)
   const auditStatement = database
     .prepare(
       `INSERT INTO audit_log (
