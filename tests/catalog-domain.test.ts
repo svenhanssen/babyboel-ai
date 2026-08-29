@@ -227,6 +227,7 @@ describe('catalog domain', () => {
   it('keeps only changed universal price points and marks evidence gaps', () => {
     const history = buildObservedPriceHistory([
       {
+        offerKey: 'single',
         observedAt: now - 100_000,
         payableAmountMinor: 1_999,
         totalUnits: 80,
@@ -235,6 +236,16 @@ describe('catalog domain', () => {
         availability: 'available',
       },
       {
+        offerKey: 'other',
+        observedAt: now - 75_000,
+        payableAmountMinor: 3_000,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        availability: 'available',
+      },
+      {
+        offerKey: 'single',
         observedAt: now - 50_000,
         payableAmountMinor: 1_999,
         totalUnits: 80,
@@ -243,6 +254,7 @@ describe('catalog domain', () => {
         availability: 'available',
       },
       {
+        offerKey: 'restricted',
         observedAt: now - 25_000,
         payableAmountMinor: 999,
         totalUnits: 80,
@@ -251,6 +263,16 @@ describe('catalog domain', () => {
         availability: 'available',
       },
       {
+        offerKey: 'other',
+        observedAt: now - 20_000,
+        payableAmountMinor: 3_000,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        availability: 'unavailable',
+      },
+      {
+        offerKey: 'single',
         observedAt: now - 10_000,
         payableAmountMinor: 1_799,
         totalUnits: 80,
@@ -259,6 +281,7 @@ describe('catalog domain', () => {
         availability: 'available',
       },
       {
+        offerKey: 'single',
         observedAt: now - 5_000,
         payableAmountMinor: 1_799,
         totalUnits: 80,
@@ -267,6 +290,7 @@ describe('catalog domain', () => {
         availability: 'unavailable',
       },
       {
+        offerKey: 'single',
         observedAt: now,
         payableAmountMinor: 1_699,
         totalUnits: 80,

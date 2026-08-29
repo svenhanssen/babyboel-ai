@@ -60,7 +60,7 @@ describe('catalog service D1 boundary', () => {
         '018f47a0-0000-7000-8000-000000000007', evidence_artifact_id,
         source_listing_key, 'single', ${now - 1_000}, ${now - 1_000},
         source_url, raw_facts_json,
-        '{"payableAmountMinor":1999,"totalUnits":80,"requiredPackageCount":1,"eligibility":"universal","availability":"available"}',
+        '{"productId":"018f47a0-0000-7000-8000-000000000004","payableAmountMinor":1999,"totalUnits":80,"requiredPackageCount":1,"eligibility":"universal","availability":"available"}',
         extraction_method, sanitized_excerpt, issue_codes_json,
         '["price"]', outcome, 'sha256:history-1', sanitized_content_hash,
         observation_format, adapter_identifier
@@ -81,7 +81,7 @@ describe('catalog service D1 boundary', () => {
         '018f47a0-0000-7000-8000-000000000007', evidence_artifact_id,
         source_listing_key, 'single', ${now}, ${now}, source_url,
         raw_facts_json,
-        '{"payableAmountMinor":1799,"totalUnits":80,"requiredPackageCount":1,"eligibility":"universal","availability":"available"}',
+        '{"productId":"018f47a0-0000-7000-8000-000000000004","payableAmountMinor":1799,"totalUnits":80,"requiredPackageCount":1,"eligibility":"universal","availability":"available"}',
         extraction_method, sanitized_excerpt, issue_codes_json,
         '["price"]', outcome, 'sha256:history-2', sanitized_content_hash,
         observation_format, adapter_identifier

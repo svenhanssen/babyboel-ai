@@ -151,25 +151,23 @@ export async function listProductPriceHistory(
   const db = drizzle(database)
   const rows = await db
     .select({
+      offerKey: sourceObservations.sourceOfferKey,
       observedAt: sourceObservations.observedAt,
       normalizedFacts: sourceObservations.normalizedFactsJson,
     })
     .from(sourceObservations)
-    .innerJoin(offers, eq(sourceObservations.offerId, offers.id))
-    .innerJoin(listings, eq(offers.listingId, listings.id))
-    .innerJoin(packages, eq(listings.packageId, packages.id))
     .where(
       and(
-        eq(packages.productId, input.productId),
         eq(sourceObservations.outcome, 'success'),
+        sql`json_extract(${sourceObservations.normalizedFactsJson}, '$.productId') = ${input.productId}`,
       ),
     )
     .orderBy(asc(sourceObservations.observedAt))
     .limit(input.limit * 4)
 
-  const facts = rows.flatMap(({ observedAt, normalizedFacts }) => {
+  const facts = rows.flatMap(({ offerKey, observedAt, normalizedFacts }) => {
     const parsed = observedOfferFactsSchema.safeParse(normalizedFacts)
-    return parsed.success ? [{ observedAt, ...parsed.data }] : []
+    return parsed.success ? [{ offerKey, observedAt, ...parsed.data }] : []
   })
   return buildObservedPriceHistory(facts).slice(-input.limit)
 }

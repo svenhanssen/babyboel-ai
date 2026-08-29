@@ -307,6 +307,24 @@ export async function reassignListing(
     .bind(input.packageId)
     .first<{ unitCount: number }>()
   if (!target) throw new Error('PACKAGE_NOT_FOUND')
+  const currentOffers = await database
+    .prepare(
+      `SELECT payable_amount_minor AS payableAmountMinor,
+        required_package_count AS requiredPackageCount
+       FROM offers WHERE listing_id = ?`,
+    )
+    .bind(input.listingId)
+    .all<{
+      payableAmountMinor: number
+      requiredPackageCount: number
+    }>()
+  for (const offer of currentOffers.results) {
+    calculateOfferPrice({
+      payableAmountMinor: offer.payableAmountMinor,
+      packageUnitCount: target.unitCount,
+      requiredPackageCount: offer.requiredPackageCount,
+    })
+  }
   const update = database
     .prepare(
       `UPDATE listings
@@ -544,7 +562,7 @@ export async function mergeProducts(
     database
       .prepare(
         `SELECT brand_id AS brandId, category_code AS categoryCode,
-          normalized_size_code AS normalizedSizeCode, lifecycle,
+          normalized_size_code AS normalizedSizeCode, line, variant, lifecycle,
           updated_at AS updatedAt
          FROM products WHERE id = ?`,
       )
@@ -553,13 +571,15 @@ export async function mergeProducts(
         brandId: string
         categoryCode: CategoryCode
         normalizedSizeCode: NormalizedSizeCode | null
+        line: string | null
+        variant: string | null
         lifecycle: string
         updatedAt: number
       }>(),
     database
       .prepare(
         `SELECT brand_id AS brandId, category_code AS categoryCode,
-          normalized_size_code AS normalizedSizeCode, lifecycle,
+          normalized_size_code AS normalizedSizeCode, line, variant, lifecycle,
           merged_into_product_id AS mergedIntoProductId,
           updated_at AS updatedAt
          FROM products WHERE id = ?`,
@@ -569,6 +589,8 @@ export async function mergeProducts(
         brandId: string
         categoryCode: CategoryCode
         normalizedSizeCode: NormalizedSizeCode | null
+        line: string | null
+        variant: string | null
         lifecycle: string
         mergedIntoProductId: string | null
         updatedAt: number
@@ -582,7 +604,11 @@ export async function mergeProducts(
   if (
     survivor.brandId !== duplicate.brandId ||
     survivor.categoryCode !== duplicate.categoryCode ||
-    survivor.normalizedSizeCode !== duplicate.normalizedSizeCode
+    survivor.normalizedSizeCode !== duplicate.normalizedSizeCode ||
+    survivor.line?.trim().toLocaleLowerCase('nl-NL') !==
+      duplicate.line?.trim().toLocaleLowerCase('nl-NL') ||
+    survivor.variant?.trim().toLocaleLowerCase('nl-NL') !==
+      duplicate.variant?.trim().toLocaleLowerCase('nl-NL')
   ) {
     throw new Error('PRODUCT_MERGE_IDENTITY_CONFLICT')
   }

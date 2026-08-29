@@ -85,6 +85,52 @@ const findObservation = (
     )
     .first<{ id: string; offerId: string | null }>()
 
+const prepareSourceObservationInsert = (
+  database: Env['DB'],
+  input: z.output<typeof sourceObservationSchema>,
+  links: {
+    listingId: string | null
+    offerId: string | null
+    normalizedFacts?: Record<string, unknown>
+  },
+) =>
+  database
+    .prepare(
+      `INSERT INTO source_observations (
+        id, retailer_source_id, retailer_run_id, listing_id, offer_id,
+        evidence_artifact_id, source_listing_key, source_offer_key,
+        observed_at, retrieved_at, source_url, raw_facts_json,
+        normalized_facts_json, extraction_method, sanitized_excerpt,
+        issue_codes_json, affected_fields_json, outcome,
+        response_integrity_hash, sanitized_content_hash,
+        observation_format, adapter_identifier
+      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?)`,
+    )
+    .bind(
+      input.id,
+      input.retailerSourceId,
+      input.retailerRunId,
+      links.listingId,
+      links.offerId,
+      input.sourceListingKey,
+      input.sourceOfferKey,
+      input.observedAt,
+      input.retrievedAt,
+      input.sourceUrl,
+      JSON.stringify(input.rawFacts),
+      JSON.stringify(links.normalizedFacts ?? input.normalizedFacts),
+      input.extractionMethod,
+      input.sanitizedExcerpt,
+      JSON.stringify(input.issueCodes),
+      JSON.stringify(input.affectedFields),
+      input.outcome,
+      input.responseIntegrityHash,
+      input.sanitizedContentHash,
+      input.observationFormat,
+      input.adapterIdentifier,
+    )
+
 export async function recordSourceObservation(
   database: Env['DB'],
   untrustedInput: SourceObservationInput,
@@ -94,43 +140,10 @@ export async function recordSourceObservation(
   if (existing) return { id: existing.id, inserted: false as const }
 
   try {
-    await database
-      .prepare(
-        `INSERT INTO source_observations (
-          id, retailer_source_id, retailer_run_id, listing_id, offer_id,
-          evidence_artifact_id, source_listing_key, source_offer_key,
-          observed_at, retrieved_at, source_url, raw_facts_json,
-          normalized_facts_json, extraction_method, sanitized_excerpt,
-          issue_codes_json, affected_fields_json, outcome,
-          response_integrity_hash, sanitized_content_hash,
-          observation_format, adapter_identifier
-        ) VALUES (
-          ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?
-        )`,
-      )
-      .bind(
-        input.id,
-        input.retailerSourceId,
-        input.retailerRunId,
-        input.sourceListingKey,
-        input.sourceOfferKey,
-        input.observedAt,
-        input.retrievedAt,
-        input.sourceUrl,
-        JSON.stringify(input.rawFacts),
-        JSON.stringify(input.normalizedFacts),
-        input.extractionMethod,
-        input.sanitizedExcerpt,
-        JSON.stringify(input.issueCodes),
-        JSON.stringify(input.affectedFields),
-        input.outcome,
-        input.responseIntegrityHash,
-        input.sanitizedContentHash,
-        input.observationFormat,
-        input.adapterIdentifier,
-      )
-      .run()
+    await prepareSourceObservationInsert(database, input, {
+      listingId: null,
+      offerId: null,
+    }).run()
     return { id: input.id, inserted: true as const }
   } catch (error) {
     const raced = await findObservation(database, input)
@@ -148,6 +161,7 @@ const validatedOfferObservationSchema = sourceObservationSchema.extend({
   conditionText: z.string().min(1).max(500).nullable(),
   availability: z.enum(['available', 'unavailable', 'unknown']),
   declaredExpiresAt: timestampSchema.nullable(),
+  outboundDestination: z.url().max(2_000),
 })
 
 export async function ingestValidatedOfferObservation(
@@ -173,7 +187,7 @@ export async function ingestValidatedOfferObservation(
   const listing = await database
     .prepare(
       `SELECT packages.unit_count AS packageUnitCount,
-        listings.match_status AS matchStatus
+        listings.match_status AS matchStatus, products.id AS productId
        FROM listings
        JOIN packages ON packages.id = listings.package_id
        JOIN products ON products.id = packages.product_id
@@ -181,7 +195,11 @@ export async function ingestValidatedOfferObservation(
          AND products.lifecycle = 'active'`,
     )
     .bind(input.listingId)
-    .first<{ packageUnitCount: number; matchStatus: string }>()
+    .first<{
+      packageUnitCount: number
+      matchStatus: string
+      productId: string
+    }>()
   if (!listing || listing.matchStatus !== 'matched') {
     throw new Error('LISTING_NOT_PUBLISHABLE')
   }
@@ -252,42 +270,14 @@ export async function ingestValidatedOfferObservation(
           input.observedAt,
           input.observedAt,
         )
-  const insertObservation = database
-    .prepare(
-      `INSERT INTO source_observations (
-        id, retailer_source_id, retailer_run_id, listing_id, offer_id,
-        evidence_artifact_id, source_listing_key, source_offer_key,
-        observed_at, retrieved_at, source_url, raw_facts_json,
-        normalized_facts_json, extraction_method, sanitized_excerpt,
-        issue_codes_json, affected_fields_json, outcome,
-        response_integrity_hash, sanitized_content_hash,
-        observation_format, adapter_identifier
-      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?)`,
-    )
-    .bind(
-      input.id,
-      input.retailerSourceId,
-      input.retailerRunId,
-      input.listingId,
-      input.offerId,
-      input.sourceListingKey,
-      input.sourceOfferKey,
-      input.observedAt,
-      input.retrievedAt,
-      input.sourceUrl,
-      JSON.stringify(input.rawFacts),
-      JSON.stringify(input.normalizedFacts),
-      input.extractionMethod,
-      input.sanitizedExcerpt,
-      JSON.stringify(input.issueCodes),
-      JSON.stringify(input.affectedFields),
-      input.outcome,
-      input.responseIntegrityHash,
-      input.sanitizedContentHash,
-      input.observationFormat,
-      input.adapterIdentifier,
-    )
+  const insertObservation = prepareSourceObservationInsert(database, input, {
+    listingId: input.listingId,
+    offerId: input.offerId,
+    normalizedFacts: {
+      ...input.normalizedFacts,
+      productId: listing.productId,
+    },
+  })
   const linkOffer = database
     .prepare(
       `UPDATE offers SET latest_observation_id = ?
@@ -298,13 +288,14 @@ export async function ingestValidatedOfferObservation(
     .prepare(
       `UPDATE listings
        SET latest_observation_id = ?, confirmed_at = ?, availability = ?,
-         updated_at = ?
+         outbound_destination = ?, updated_at = ?
        WHERE id = ?`,
     )
     .bind(
       input.id,
       input.observedAt,
       input.availability,
+      input.outboundDestination,
       input.observedAt,
       input.listingId,
     )
@@ -350,42 +341,10 @@ export async function quarantineOfferObservation(
     if (!offer) throw new Error('OFFER_NOT_FOUND')
   }
 
-  const insertObservation = database
-    .prepare(
-      `INSERT INTO source_observations (
-        id, retailer_source_id, retailer_run_id, listing_id, offer_id,
-        evidence_artifact_id, source_listing_key, source_offer_key,
-        observed_at, retrieved_at, source_url, raw_facts_json,
-        normalized_facts_json, extraction_method, sanitized_excerpt,
-        issue_codes_json, affected_fields_json, outcome,
-        response_integrity_hash, sanitized_content_hash,
-        observation_format, adapter_identifier
-      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?)`,
-    )
-    .bind(
-      input.id,
-      input.retailerSourceId,
-      input.retailerRunId,
-      input.listingId,
-      input.offerId,
-      input.sourceListingKey,
-      input.sourceOfferKey,
-      input.observedAt,
-      input.retrievedAt,
-      input.sourceUrl,
-      JSON.stringify(input.rawFacts),
-      JSON.stringify(input.normalizedFacts),
-      input.extractionMethod,
-      input.sanitizedExcerpt,
-      JSON.stringify(input.issueCodes),
-      JSON.stringify(input.affectedFields),
-      input.outcome,
-      input.responseIntegrityHash,
-      input.sanitizedContentHash,
-      input.observationFormat,
-      input.adapterIdentifier,
-    )
+  const insertObservation = prepareSourceObservationInsert(database, input, {
+    listingId: input.listingId,
+    offerId: input.offerId,
+  })
   const statements = [insertObservation]
   if (input.offerId !== null) {
     statements.push(
@@ -490,18 +449,6 @@ const observedListingMatchSchema = z.object({
   reviewCaseId: uuidV7Schema,
   expectedUpdatedAt: timestampSchema,
   decidedAt: timestampSchema,
-  observed: matchFactsSchema,
-  verifiedGtin: z
-    .object({
-      value: z.string().regex(/^(?:\d{8}|\d{12,14})$/),
-      provenance: z.enum([
-        'authorized_feed',
-        'manufacturer',
-        'retailer_page',
-        'model',
-      ]),
-    })
-    .optional(),
   blockAutomaticReuse: z.boolean().default(false),
 })
 
@@ -514,7 +461,8 @@ export async function matchObservedListing(
     .prepare(
       `SELECT package_id AS packageId, match_method AS matchMethod,
         match_fingerprint AS matchFingerprint,
-        automatic_reuse_blocked AS automaticReuseBlocked
+        automatic_reuse_blocked AS automaticReuseBlocked,
+        retailer_id AS retailerId, retailer_sku AS retailerSku
        FROM listings WHERE id = ?`,
     )
     .bind(input.listingId)
@@ -523,8 +471,57 @@ export async function matchObservedListing(
       matchMethod: string | null
       matchFingerprint: string | null
       automaticReuseBlocked: number
+      retailerId: string
+      retailerSku: string
     }>()
   if (!listing) throw new Error('LISTING_NOT_FOUND')
+  const sourceObservation = await database
+    .prepare(
+      `SELECT source_observations.normalized_facts_json AS normalizedFacts,
+        source_observations.extraction_method AS extractionMethod,
+        source_observations.source_listing_key AS sourceListingKey,
+        retailer_sources.retailer_id AS retailerId,
+        retailer_sources.acquisition_method AS acquisitionMethod,
+        retailer_sources.authorization_status AS authorizationStatus
+       FROM source_observations
+       JOIN retailer_sources
+         ON retailer_sources.id = source_observations.retailer_source_id
+       WHERE source_observations.id = ?`,
+    )
+    .bind(input.observationId)
+    .first<{
+      normalizedFacts: string
+      extractionMethod: string
+      sourceListingKey: string
+      retailerId: string
+      acquisitionMethod: string
+      authorizationStatus: string
+    }>()
+  if (
+    !sourceObservation ||
+    sourceObservation.retailerId !== listing.retailerId ||
+    sourceObservation.sourceListingKey !== listing.retailerSku
+  ) {
+    throw new Error('OBSERVATION_LISTING_MISMATCH')
+  }
+  let normalizedFacts: unknown
+  try {
+    normalizedFacts = JSON.parse(sourceObservation.normalizedFacts)
+  } catch {
+    throw new Error('OBSERVATION_FACTS_INVALID')
+  }
+  const observed = matchFactsSchema.parse(normalizedFacts)
+  const verifiedGtin =
+    observed.gtin !== null &&
+    sourceObservation.authorizationStatus === 'authorized' &&
+    (sourceObservation.acquisitionMethod === 'feed' ||
+      sourceObservation.acquisitionMethod === 'api') &&
+    sourceObservation.extractionMethod === 'api'
+      ? {
+          value: observed.gtin,
+          provenance: 'authorized_feed' as const,
+        }
+      : undefined
 
   const fingerprintFacts = parseStoredFingerprint(listing.matchFingerprint)
   const approved =
@@ -573,9 +570,9 @@ export async function matchObservedListing(
     }),
   )
   const decision = decideListingMatch({
-    observed: input.observed,
+    observed,
     approved,
-    verifiedGtin: input.verifiedGtin,
+    verifiedGtin,
     verifiedGtinPackages,
   })
 
@@ -585,7 +582,7 @@ export async function matchObservedListing(
     reviewCaseId: input.reviewCaseId,
     expectedUpdatedAt: input.expectedUpdatedAt,
     decidedAt: input.decidedAt,
-    fingerprint: createMatchFingerprint(input.observed),
+    fingerprint: createMatchFingerprint(observed),
     decision,
     blockAutomaticReuse: input.blockAutomaticReuse,
   })
@@ -626,7 +623,7 @@ async function applyListingMatchDecision(
              SET package_id = ?, match_status = 'matched', match_method = ?,
                match_fingerprint = ?, automatic_reuse_blocked = 0,
                last_match_decision_at = ?, latest_observation_id = ?,
-               confirmed_at = ?, updated_at = ?
+               updated_at = ?
              WHERE id = ? AND updated_at = ?
              RETURNING id`,
           )
@@ -636,7 +633,6 @@ async function applyListingMatchDecision(
             input.fingerprint,
             input.decidedAt,
             input.observationId,
-            input.decidedAt,
             input.decidedAt,
             input.listingId,
             input.expectedUpdatedAt,

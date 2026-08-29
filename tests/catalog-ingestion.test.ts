@@ -23,7 +23,17 @@ const observation = {
   retrievedAt: now,
   sourceUrl: 'https://retailer.example/fixture-brand-4-plus',
   rawFacts: { title: 'Contradictory source title' },
-  normalizedFacts: { categoryCode: 'diaper_pants' },
+  normalizedFacts: {
+    brand: 'Fixture Brand',
+    categoryCode: 'diaper_pants',
+    normalizedSizeCode: '4+',
+    line: 'Original',
+    variant: 'Regular',
+    gtin: '08712345678903',
+    unitCount: 80,
+    innerPackCount: 2,
+    unitsPerInnerPack: 40,
+  },
   extractionMethod: 'api' as const,
   sanitizedExcerpt: 'Contradictory source title',
   issueCodes: ['identity_conflict'],
@@ -34,18 +44,6 @@ const observation = {
   observationFormat: 1,
   adapterIdentifier: 'fixture-adapter@1',
 }
-const contradictoryFacts = {
-  brand: 'Fixture Brand',
-  categoryCode: 'diaper_pants' as const,
-  normalizedSizeCode: '4+' as const,
-  line: 'Original',
-  variant: 'Regular',
-  gtin: '08712345678903',
-  unitCount: 80,
-  innerPackCount: 2,
-  unitsPerInnerPack: 40,
-}
-
 describe('catalog ingestion D1 boundary', () => {
   let database: D1TestDatabase
 
@@ -102,6 +100,7 @@ describe('catalog ingestion D1 boundary', () => {
         conditionText: '2 verpakkingen',
         availability: 'available',
         declaredExpiresAt: null,
+        outboundDestination: 'https://retailer.example/fixture-brand-4-plus',
       }),
     ).resolves.toEqual({
       status: 'updated',
@@ -174,7 +173,6 @@ describe('catalog ingestion D1 boundary', () => {
       reviewCaseId: '018f47a0-0000-7000-8000-000000000032',
       expectedUpdatedAt: offerObservedAt,
       decidedAt: matchDecidedAt,
-      observed: contradictoryFacts,
       blockAutomaticReuse: true,
     })
 
@@ -226,7 +224,6 @@ describe('catalog ingestion D1 boundary', () => {
         reviewCaseId: '018f47a0-0000-7000-8000-000000000033',
         expectedUpdatedAt: matchDecidedAt,
         decidedAt: matchDecidedAt + 1,
-        observed: contradictoryFacts,
         blockAutomaticReuse: true,
       }),
     ).resolves.toEqual({ status: 'unchanged', version: matchDecidedAt })

@@ -163,7 +163,7 @@ describe('catalog maintenance D1 boundary', () => {
       ) VALUES (
         '018f47a0-0000-7000-8000-000000000042',
         '018f47a0-0000-7000-8000-000000000003',
-        'disposable_diaper', 'Original typo', 'Regular', '4+',
+        'disposable_diaper', 'Original', 'Regular', '4+',
         'fixture-brand|disposable_diaper|original-typo|regular|4+',
         'fixture-brand-original-typo-4-plus', 'active', ${fixtureNow},
         ${fixtureNow}

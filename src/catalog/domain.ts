@@ -237,6 +237,7 @@ export function rankCurrentOffers<Offer extends RankedOffer>(
 }
 
 export type ObservedPriceFact = {
+  offerKey: string
   observedAt: number
   payableAmountMinor: number
   totalUnits: number
@@ -246,6 +247,10 @@ export type ObservedPriceFact = {
 }
 
 export function buildObservedPriceHistory(observations: ObservedPriceFact[]) {
+  type CurrentPriceWinner = Pick<
+    ObservedPriceFact,
+    'offerKey' | 'payableAmountMinor' | 'totalUnits' | 'requiredPackageCount'
+  > & { confirmedAt: number }
   const points: Array<
     Pick<
       ObservedPriceFact,
@@ -255,44 +260,65 @@ export function buildObservedPriceHistory(observations: ObservedPriceFact[]) {
       | 'requiredPackageCount'
     > & { continuity: 'start' | 'continuous' }
   > = []
-  let current:
-    | (Pick<
-        ObservedPriceFact,
-        'payableAmountMinor' | 'totalUnits' | 'requiredPackageCount'
-      > & { confirmedAt: number })
-    | null = null
+  const currentOffers = new Map<string, ObservedPriceFact>()
+  const state: { winner: CurrentPriceWinner | null } = { winner: null }
 
   for (const observation of [...observations].sort(
     (left, right) => left.observedAt - right.observedAt,
   )) {
-    if (observation.eligibility === 'restricted') continue
-    if (observation.availability !== 'available') {
-      current = null
+    if (
+      observation.eligibility === 'restricted' ||
+      observation.availability !== 'available'
+    ) {
+      currentOffers.delete(observation.offerKey)
+    } else {
+      currentOffers.set(observation.offerKey, observation)
+    }
+    const winner = [...currentOffers.values()].sort((left, right) => {
+      const leftPrice =
+        BigInt(left.payableAmountMinor) * BigInt(right.totalUnits)
+      const rightPrice =
+        BigInt(right.payableAmountMinor) * BigInt(left.totalUnits)
+      if (leftPrice !== rightPrice) return leftPrice < rightPrice ? -1 : 1
+      return (
+        left.payableAmountMinor - right.payableAmountMinor ||
+        left.requiredPackageCount - right.requiredPackageCount ||
+        left.offerKey.localeCompare(right.offerKey)
+      )
+    })[0]
+    if (!winner) {
+      state.winner = null
       continue
     }
+    const previousWinner = state.winner
     const isUnchanged =
-      current !== null &&
-      current.payableAmountMinor === observation.payableAmountMinor &&
-      current.totalUnits === observation.totalUnits &&
-      current.requiredPackageCount === observation.requiredPackageCount
+      previousWinner !== null &&
+      previousWinner.offerKey === winner.offerKey &&
+      previousWinner.payableAmountMinor === winner.payableAmountMinor &&
+      previousWinner.totalUnits === winner.totalUnits &&
+      previousWinner.requiredPackageCount === winner.requiredPackageCount
     const continuous =
-      current !== null &&
-      observation.observedAt - current.confirmedAt <=
+      previousWinner !== null &&
+      observation.observedAt - previousWinner.confirmedAt <=
         currentOfferFreshnessMilliseconds
     if (!isUnchanged) {
       points.push({
-        observedAt: observation.observedAt,
-        payableAmountMinor: observation.payableAmountMinor,
-        totalUnits: observation.totalUnits,
-        requiredPackageCount: observation.requiredPackageCount,
+        observedAt: winner.observedAt,
+        payableAmountMinor: winner.payableAmountMinor,
+        totalUnits: winner.totalUnits,
+        requiredPackageCount: winner.requiredPackageCount,
         continuity: continuous ? 'continuous' : 'start',
       })
     }
-    current = {
-      payableAmountMinor: observation.payableAmountMinor,
-      totalUnits: observation.totalUnits,
-      requiredPackageCount: observation.requiredPackageCount,
-      confirmedAt: observation.observedAt,
+    state.winner = {
+      offerKey: winner.offerKey,
+      payableAmountMinor: winner.payableAmountMinor,
+      totalUnits: winner.totalUnits,
+      requiredPackageCount: winner.requiredPackageCount,
+      confirmedAt:
+        observation.offerKey === winner.offerKey
+          ? observation.observedAt
+          : (previousWinner?.confirmedAt ?? winner.observedAt),
     }
   }
   return points
