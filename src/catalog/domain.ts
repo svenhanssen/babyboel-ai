@@ -5,6 +5,7 @@ import {
   type CategoryCode,
   type NormalizedSizeCode,
 } from '../db/domain'
+import { z } from 'zod'
 
 type NullableFact = string | number | null
 
@@ -19,6 +20,21 @@ export type MatchFacts = {
   innerPackCount: number | null
   unitsPerInnerPack: number | null
 }
+
+export const matchFactsSchema = z.object({
+  brand: z.string().min(1).max(200).nullable(),
+  categoryCode: z.enum(categoryCodes).nullable(),
+  normalizedSizeCode: z.enum(normalizedSizeCodes).nullable(),
+  line: z.string().min(1).max(200).nullable(),
+  variant: z.string().min(1).max(200).nullable(),
+  gtin: z
+    .string()
+    .regex(/^(?:\d{8}|\d{12,14})$/)
+    .nullable(),
+  unitCount: z.number().int().positive().nullable(),
+  innerPackCount: z.number().int().positive().nullable(),
+  unitsPerInnerPack: z.number().int().positive().nullable(),
+})
 
 export type PackageMatchCandidate = {
   packageId: string

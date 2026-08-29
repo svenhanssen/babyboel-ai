@@ -1,32 +1,17 @@
 import { z } from 'zod'
 
-import { categoryCodes, normalizedSizeCodes } from '../db/domain'
 import { uuidV7Schema } from '../db/validation'
 import {
   calculateOfferPrice,
   createMatchFingerprint,
   decideListingMatch,
+  matchFactsSchema,
   type MatchDecision,
   type MatchFacts,
   type PackageMatchCandidate,
 } from './domain'
 
 const timestampSchema = z.number().int().nonnegative()
-const matchFactsSchema = z.object({
-  brand: z.string().min(1).max(200).nullable(),
-  categoryCode: z.enum(categoryCodes).nullable(),
-  normalizedSizeCode: z.enum(normalizedSizeCodes).nullable(),
-  line: z.string().min(1).max(200).nullable(),
-  variant: z.string().min(1).max(200).nullable(),
-  gtin: z
-    .string()
-    .regex(/^(?:\d{8}|\d{12,14})$/)
-    .nullable(),
-  unitCount: z.number().int().positive().nullable(),
-  innerPackCount: z.number().int().positive().nullable(),
-  unitsPerInnerPack: z.number().int().positive().nullable(),
-})
-
 const sourceObservationSchema = z
   .object({
     id: uuidV7Schema,
@@ -134,6 +119,29 @@ const prepareSourceObservationInsert = (
       input.adapterIdentifier,
     )
 
+const assertObservationBelongsToRetailer = async (
+  database: Env['DB'],
+  input: Pick<
+    z.output<typeof sourceObservationSchema>,
+    'retailerSourceId' | 'retailerRunId'
+  >,
+  retailerId: string,
+) => {
+  const scope = await database
+    .prepare(
+      `SELECT retailer_sources.id
+       FROM retailer_sources
+       JOIN retailer_runs
+         ON retailer_runs.id = ?
+         AND retailer_runs.retailer_id = retailer_sources.retailer_id
+       WHERE retailer_sources.id = ?
+         AND retailer_sources.retailer_id = ?`,
+    )
+    .bind(input.retailerRunId, input.retailerSourceId, retailerId)
+    .first()
+  if (!scope) throw new Error('OBSERVATION_RETAILER_MISMATCH')
+}
+
 export async function recordIdentityObservation(
   database: Env['DB'],
   untrustedInput: SourceObservationInput,
@@ -202,7 +210,8 @@ export async function ingestValidatedOfferObservation(
   const listing = await database
     .prepare(
       `SELECT packages.unit_count AS packageUnitCount,
-        listings.match_status AS matchStatus, products.id AS productId
+        listings.match_status AS matchStatus, products.id AS productId,
+        listings.retailer_id AS retailerId
        FROM listings
        JOIN packages ON packages.id = listings.package_id
        JOIN products ON products.id = packages.product_id
@@ -214,10 +223,12 @@ export async function ingestValidatedOfferObservation(
       packageUnitCount: number
       matchStatus: string
       productId: string
+      retailerId: string
     }>()
   if (!listing || listing.matchStatus !== 'matched') {
     throw new Error('LISTING_NOT_PUBLISHABLE')
   }
+  await assertObservationBelongsToRetailer(database, input, listing.retailerId)
   const price = calculateOfferPrice({
     payableAmountMinor: input.payableAmountMinor,
     packageUnitCount: listing.packageUnitCount,
@@ -363,11 +374,15 @@ export async function quarantineOfferObservation(
     .bind(input.listingId)
     .first<{ retailerId: string }>()
   if (!listing) throw new Error('LISTING_NOT_FOUND')
+  await assertObservationBelongsToRetailer(database, input, listing.retailerId)
   if (input.offerId !== null) {
     const offer = await database
-      .prepare('SELECT id FROM offers WHERE id = ? AND listing_id = ?')
+      .prepare(
+        `SELECT id, confirmed_at AS confirmedAt
+         FROM offers WHERE id = ? AND listing_id = ?`,
+      )
       .bind(input.offerId, input.listingId)
-      .first()
+      .first<{ id: string; confirmedAt: number }>()
     if (!offer) throw new Error('OFFER_NOT_FOUND')
   }
 
@@ -383,9 +398,9 @@ export async function quarantineOfferObservation(
           `UPDATE offers
            SET availability = 'unknown', latest_observation_id = ?,
              updated_at = ?
-           WHERE id = ?`,
+           WHERE id = ? AND confirmed_at < ?`,
         )
-        .bind(input.id, input.observedAt, input.offerId),
+        .bind(input.id, input.observedAt, input.offerId, input.observedAt),
     )
   }
   statements.push(
@@ -492,8 +507,13 @@ export async function matchObservedListing(
       `SELECT package_id AS packageId, match_method AS matchMethod,
         match_fingerprint AS matchFingerprint,
         automatic_reuse_blocked AS automaticReuseBlocked,
-        retailer_id AS retailerId, retailer_sku AS retailerSku
-       FROM listings WHERE id = ?`,
+        retailer_id AS retailerId, retailer_sku AS retailerSku,
+        packages.lifecycle AS packageLifecycle,
+        products.lifecycle AS productLifecycle
+       FROM listings
+       LEFT JOIN packages ON packages.id = listings.package_id
+       LEFT JOIN products ON products.id = packages.product_id
+       WHERE listings.id = ?`,
     )
     .bind(input.listingId)
     .first<{
@@ -503,6 +523,8 @@ export async function matchObservedListing(
       automaticReuseBlocked: number
       retailerId: string
       retailerSku: string
+      packageLifecycle: 'active' | 'inactive' | null
+      productLifecycle: 'active' | 'inactive' | null
     }>()
   if (!listing) throw new Error('LISTING_NOT_FOUND')
   const sourceObservation = await database
@@ -571,6 +593,8 @@ export async function matchObservedListing(
   const fingerprintFacts = parseStoredFingerprint(listing.matchFingerprint)
   const approved =
     listing.packageId !== null &&
+    listing.packageLifecycle === 'active' &&
+    listing.productLifecycle === 'active' &&
     fingerprintFacts !== null &&
     (listing.matchMethod === 'manual' ||
       listing.matchMethod === 'approved_listing')

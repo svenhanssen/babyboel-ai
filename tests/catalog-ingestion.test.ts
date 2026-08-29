@@ -286,6 +286,12 @@ describe('catalog ingestion D1 boundary', () => {
         outboundDestination: 'https://retailer.example/unrelated',
       }),
     ).rejects.toThrow('OUTBOUND_EVIDENCE_MISMATCH')
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...validInput,
+        retailerSourceId: '018f47a0-0000-7000-8000-00000000003e',
+      }),
+    ).rejects.toThrow('OBSERVATION_RETAILER_MISMATCH')
   })
 
   it('retains contradictory price evidence and quarantines the Offer into Review', async () => {
@@ -294,8 +300,8 @@ describe('catalog ingestion D1 boundary', () => {
         ...observation,
         id: '018f47a0-0000-7000-8000-000000000035',
         sourceOfferKey: 'single',
-        observedAt: offerObservedAt + 1,
-        retrievedAt: offerObservedAt + 1,
+        observedAt: offerObservedAt + 101,
+        retrievedAt: offerObservedAt + 101,
         normalizedFacts: {},
         outcome: 'invalid',
         responseIntegrityHash: 'sha256:price-conflict',
@@ -327,12 +333,71 @@ describe('catalog ingestion D1 boundary', () => {
     ).toEqual([{ availability: 'unknown', reviews: 1 }])
   }, 20_000)
 
+  it('retains delayed contradictory evidence without suppressing newer truth', async () => {
+    const restoredAt = offerObservedAt + 102
+    await ingestValidatedOfferObservation(database.binding, {
+      ...observation,
+      id: '018f47a0-0000-7000-8000-00000000003b',
+      sourceOfferKey: 'single',
+      observedAt: restoredAt,
+      retrievedAt: restoredAt,
+      responseIntegrityHash: 'sha256:restored-offer',
+      issueCodes: [],
+      normalizedFacts: {
+        payableAmountMinor: 1_799,
+        totalUnits: 160,
+        requiredPackageCount: 2,
+        eligibility: 'universal',
+        availability: 'available',
+      },
+      listingId: '018f47a0-0000-7000-8000-000000000006',
+      offerId: '018f47a0-0000-7000-8000-000000000007',
+      payableAmountMinor: 1_799,
+      requiredPackageCount: 2,
+      eligibility: 'universal',
+      conditionText: '2 verpakkingen',
+      availability: 'available',
+      declaredExpiresAt: null,
+      outboundDestination: 'https://retailer.example/fixture-brand-4-plus',
+    })
+
+    await quarantineOfferObservation(database.binding, {
+      ...observation,
+      id: '018f47a0-0000-7000-8000-00000000003c',
+      sourceOfferKey: 'single',
+      observedAt: restoredAt - 1,
+      retrievedAt: restoredAt - 1,
+      normalizedFacts: {},
+      outcome: 'invalid',
+      responseIntegrityHash: 'sha256:delayed-price-conflict',
+      issueCodes: ['price_conflict'],
+      affectedFields: ['price'],
+      listingId: '018f47a0-0000-7000-8000-000000000006',
+      offerId: '018f47a0-0000-7000-8000-000000000007',
+      reviewCaseId: '018f47a0-0000-7000-8000-00000000003d',
+      uncertaintyType: 'price_conflict',
+    })
+
+    expect(
+      database.execute<{ availability: string; observationId: string }>(`
+        SELECT availability, latest_observation_id AS observationId
+        FROM offers
+        WHERE id = '018f47a0-0000-7000-8000-000000000007'
+      `),
+    ).toEqual([
+      {
+        availability: 'available',
+        observationId: '018f47a0-0000-7000-8000-00000000003b',
+      },
+    ])
+  }, 20_000)
+
   it('suppresses a contradictory Listing and opens one logical Review case', async () => {
     const result = await matchObservedListing(database.binding, {
       listingId: '018f47a0-0000-7000-8000-000000000006',
       observationId: observation.id,
       reviewCaseId: '018f47a0-0000-7000-8000-000000000032',
-      expectedUpdatedAt: offerObservedAt + 100,
+      expectedUpdatedAt: offerObservedAt + 102,
       decidedAt: matchDecidedAt,
       blockAutomaticReuse: true,
     })

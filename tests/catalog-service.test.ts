@@ -156,6 +156,20 @@ describe('catalog service D1 boundary', () => {
         conflictReasons: [],
       },
     ])
+
+    await expect(
+      findListingMatchCandidates(database.binding, {
+        brand: 'Fixture Brand',
+        categoryCode: 'disposable_diaper',
+        normalizedSizeCode: '4+',
+        line: 'Original',
+        variant: 'Regular',
+        gtin: '08712345678903',
+        unitCount: 0,
+        innerPackCount: 2,
+        unitsPerInnerPack: 40,
+      }),
+    ).rejects.toThrow()
   })
 
   it('resolves active Package aliases without guessing', async () => {

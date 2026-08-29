@@ -16,6 +16,7 @@ import {
 import {
   buildObservedPriceChanges,
   deriveMatchingCandidates,
+  matchFactsSchema,
   rankCurrentOffers,
   type MatchFacts,
 } from './domain'
@@ -143,8 +144,9 @@ export async function listCurrentProductOffers(
 
 export async function findListingMatchCandidates(
   database: Env['DB'],
-  observed: MatchFacts,
+  untrustedObserved: MatchFacts,
 ) {
+  const observed = matchFactsSchema.parse(untrustedObserved)
   if (
     observed.brand === null ||
     observed.categoryCode === null ||
