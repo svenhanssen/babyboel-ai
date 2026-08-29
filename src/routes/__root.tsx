@@ -8,6 +8,7 @@ import {
 import { useEffect, useRef } from 'react'
 
 import interRegular from '@fontsource/inter/files/inter-latin-400-normal.woff2?url'
+import interSemibold from '@fontsource/inter/files/inter-latin-600-normal.woff2?url'
 import fredokaSemibold from '@fontsource/fredoka/files/fredoka-latin-600-normal.woff2?url'
 import { AppShell } from '../ui/app-shell'
 import { themeScript } from '../ui/theme'
@@ -43,6 +44,13 @@ export const Route = createRootRoute({
       {
         rel: 'preload',
         href: fredokaSemibold,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous',
+      },
+      {
+        rel: 'preload',
+        href: interSemibold,
         as: 'font',
         type: 'font/woff2',
         crossOrigin: 'anonymous',

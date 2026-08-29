@@ -25,6 +25,17 @@
     format('woff2');
 }
 
+@font-face {
+  font-family: 'Inter Fallback';
+  font-style: normal;
+  font-weight: 400 600;
+  src: local('Arial');
+  size-adjust: 105%;
+  ascent-override: 95%;
+  descent-override: 23%;
+  line-gap-override: 0%;
+}
+
 :root {
   color-scheme: light;
   --page: #fffaf5;
@@ -58,6 +69,7 @@
   background: var(--page);
   font-family:
     Inter,
+    'Inter Fallback',
     ui-sans-serif,
     system-ui,
     -apple-system,
