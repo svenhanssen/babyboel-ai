@@ -10,21 +10,21 @@ function AdminPlaceholder() {
       <header className="page-heading">
         <div>
           <p className="eyebrow">Operator workspace</p>
-          <h1>Admin foundation ready</h1>
+          <h1>Protected Admin workspace</h1>
         </div>
-        <span className="tag">Setup</span>
+        <span className="tag">Protected</span>
       </header>
       <section aria-labelledby="admin-status" className="surface">
         <h2 id="admin-status">Workspace status</h2>
         <p>
-          Authentication and review workflows are deliberately deferred to their
-          own tickets.
+          Cloudflare Access verifies the configured operator before this route
+          is rendered. Review workflows are delivered separately.
         </p>
         <div className="notice" role="status">
-          <strong>Protected workflows are not active yet.</strong>
+          <strong>The operator boundary is active.</strong>
           <span>
-            This route currently demonstrates the denser Admin presentation
-            only.
+            State-changing requests also require the trusted origin and the
+            Admin CSRF token.
           </span>
         </div>
       </section>

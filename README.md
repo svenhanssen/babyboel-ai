@@ -38,9 +38,17 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-This starts the public app and the `/admin` placeholder with local D1/R2/email
+This starts the public app and the `/admin` workspace with local D1/R2/email
 emulation. No retailer network access is possible because local configuration
-is fixture-only.
+is fixture-only. Admin requests deliberately require the local-only test
+identity header:
+
+```sh
+curl --header "X-Babyboel-Local-Actor: local-operator" \
+  "http://localhost:3000/admin"
+```
+
+The local identity header is ignored in preview and production.
 
 The Worker exposes its scheduled-handler test endpoint while Vite is running:
 
@@ -66,6 +74,29 @@ acquisition is not fixture-only or preview D1/R2 names match production.
 Migration validation checks Drizzle metadata and schema drift, strict tables,
 append-only observation/audit triggers, forward numbering, and application of
 all migrations to a fresh local D1 store.
+
+## Admin security
+
+Cloudflare Access must protect `/admin` in preview and production. The Worker
+also verifies the `Cf-Access-Jwt-Assertion` signature and its exact issuer,
+application audience, eight-hour maximum lifetime, and operator subject. Admin
+mutations are POST-only and require the configured `TRUSTED_ORIGIN` plus the
+double-submit CSRF token issued by an authenticated Admin GET.
+
+Before deployment, replace the unmistakable values in `wrangler.jsonc`:
+
+- `ACCESS_TEAM_DOMAIN`: the Access team hostname, without a scheme or path;
+- `ACCESS_AUD`: the exact Access application audience (different per
+  environment);
+- `ACCESS_OPERATOR_SUBJECT`: the sole permitted operator's stable Access
+  subject;
+- `TRUSTED_ORIGIN`: the exact HTTPS origin serving that environment.
+
+These values identify policy but are not credentials. Access assertions,
+deployment tokens, API credentials, and other secrets belong in Cloudflare or
+protected GitHub environments. They must not be placed in `wrangler.jsonc`,
+source, fixtures, logs, audit summaries, client bundles, or preview variables.
+Admin responses and authentication failures are private and non-cacheable.
 
 ## Database changes
 
