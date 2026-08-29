@@ -5,7 +5,7 @@ import {
   ingestValidatedOfferObservation,
   matchObservedListing,
   quarantineOfferObservation,
-  recordSourceObservation,
+  recordIdentityObservation,
 } from '../src/catalog/ingestion'
 import { createD1TestDatabase, type D1TestDatabase } from './d1'
 
@@ -18,7 +18,7 @@ const observation = {
   retailerSourceId: '018f47a0-0000-7000-8000-000000000002',
   retailerRunId: '018f47a0-0000-7000-8000-000000000008',
   sourceListingKey: 'SKU-4PLUS-80',
-  sourceOfferKey: 'changed',
+  sourceOfferKey: 'identity',
   observedAt: now,
   retrievedAt: now,
   sourceUrl: 'https://retailer.example/fixture-brand-4-plus',
@@ -58,11 +58,11 @@ describe('catalog ingestion D1 boundary', () => {
 
   it('records the same Source Observation idempotently', async () => {
     await expect(
-      recordSourceObservation(database.binding, observation),
+      recordIdentityObservation(database.binding, observation),
     ).resolves.toEqual({ id: observation.id, inserted: true })
 
     await expect(
-      recordSourceObservation(database.binding, {
+      recordIdentityObservation(database.binding, {
         ...observation,
         id: '018f47a0-0000-7000-8000-000000000031',
       }),

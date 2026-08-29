@@ -266,6 +266,14 @@ export function buildObservedPriceHistory(observations: ObservedPriceFact[]) {
   for (const observation of [...observations].sort(
     (left, right) => left.observedAt - right.observedAt,
   )) {
+    for (const [offerKey, currentOffer] of currentOffers) {
+      if (
+        observation.observedAt - currentOffer.observedAt >
+        currentOfferFreshnessMilliseconds
+      ) {
+        currentOffers.delete(offerKey)
+      }
+    }
     if (
       observation.eligibility === 'restricted' ||
       observation.availability !== 'available'
@@ -273,6 +281,9 @@ export function buildObservedPriceHistory(observations: ObservedPriceFact[]) {
       currentOffers.delete(observation.offerKey)
     } else {
       currentOffers.set(observation.offerKey, observation)
+    }
+    if (state.winner !== null && !currentOffers.has(state.winner.offerKey)) {
+      state.winner = null
     }
     const winner = [...currentOffers.values()].sort((left, right) => {
       const leftPrice =

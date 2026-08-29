@@ -325,6 +325,46 @@ describe('catalog domain', () => {
     ])
   })
 
+  it('expires unreconfirmed competing Offers from Product history', () => {
+    expect(
+      buildObservedPriceHistory([
+        {
+          offerKey: 'cheap',
+          observedAt: 0,
+          payableAmountMinor: 1_000,
+          totalUnits: 80,
+          requiredPackageCount: 1,
+          eligibility: 'universal',
+          availability: 'available',
+        },
+        {
+          offerKey: 'fresh',
+          observedAt: 48 * 60 * 60 * 1_000 + 1,
+          payableAmountMinor: 2_000,
+          totalUnits: 80,
+          requiredPackageCount: 1,
+          eligibility: 'universal',
+          availability: 'available',
+        },
+      ]),
+    ).toEqual([
+      {
+        observedAt: 0,
+        payableAmountMinor: 1_000,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        continuity: 'start',
+      },
+      {
+        observedAt: 48 * 60 * 60 * 1_000 + 1,
+        payableAmountMinor: 2_000,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        continuity: 'start',
+      },
+    ])
+  })
+
   it('reuses an approved Listing only for an unchanged clean fingerprint', () => {
     expect(
       decideListingMatch({

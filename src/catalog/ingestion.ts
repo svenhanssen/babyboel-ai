@@ -131,11 +131,14 @@ const prepareSourceObservationInsert = (
       input.adapterIdentifier,
     )
 
-export async function recordSourceObservation(
+export async function recordIdentityObservation(
   database: Env['DB'],
   untrustedInput: SourceObservationInput,
 ) {
   const input = sourceObservationSchema.parse(untrustedInput)
+  if (input.sourceOfferKey !== 'identity') {
+    throw new Error('IDENTITY_OBSERVATION_LANE_REQUIRED')
+  }
   const existing = await findObservation(database, input)
   if (existing) return { id: existing.id, inserted: false as const }
 
@@ -479,6 +482,8 @@ export async function matchObservedListing(
     .prepare(
       `SELECT source_observations.normalized_facts_json AS normalizedFacts,
         source_observations.extraction_method AS extractionMethod,
+        source_observations.outcome,
+        source_observations.issue_codes_json AS issueCodes,
         source_observations.source_listing_key AS sourceListingKey,
         retailer_sources.retailer_id AS retailerId,
         retailer_sources.acquisition_method AS acquisitionMethod,
@@ -492,6 +497,8 @@ export async function matchObservedListing(
     .first<{
       normalizedFacts: string
       extractionMethod: string
+      outcome: string
+      issueCodes: string
       sourceListingKey: string
       retailerId: string
       acquisitionMethod: string
@@ -511,8 +518,19 @@ export async function matchObservedListing(
     throw new Error('OBSERVATION_FACTS_INVALID')
   }
   const observed = matchFactsSchema.parse(normalizedFacts)
+  let issueCodes: unknown
+  try {
+    issueCodes = JSON.parse(sourceObservation.issueCodes)
+  } catch {
+    throw new Error('OBSERVATION_ISSUES_INVALID')
+  }
+  const hasCriticalIssue =
+    sourceObservation.outcome !== 'success' ||
+    !z.array(z.string()).safeParse(issueCodes).success ||
+    (Array.isArray(issueCodes) && issueCodes.length > 0)
   const verifiedGtin =
     observed.gtin !== null &&
+    !hasCriticalIssue &&
     sourceObservation.authorizationStatus === 'authorized' &&
     (sourceObservation.acquisitionMethod === 'feed' ||
       sourceObservation.acquisitionMethod === 'api') &&
@@ -532,7 +550,8 @@ export async function matchObservedListing(
       ? {
           packageId: listing.packageId,
           fingerprint: fingerprintFacts,
-          automaticReuseBlocked: listing.automaticReuseBlocked === 1,
+          automaticReuseBlocked:
+            listing.automaticReuseBlocked === 1 || hasCriticalIssue,
         }
       : null
   const catalogRows = await database

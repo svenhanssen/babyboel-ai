@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { z } from 'zod'
 
@@ -151,7 +151,8 @@ export async function listProductPriceHistory(
   const db = drizzle(database)
   const rows = await db
     .select({
-      offerKey: sourceObservations.sourceOfferKey,
+      listingId: sourceObservations.listingId,
+      sourceOfferKey: sourceObservations.sourceOfferKey,
       observedAt: sourceObservations.observedAt,
       normalizedFacts: sourceObservations.normalizedFactsJson,
     })
@@ -159,16 +160,37 @@ export async function listProductPriceHistory(
     .where(
       and(
         eq(sourceObservations.outcome, 'success'),
-        sql`json_extract(${sourceObservations.normalizedFactsJson}, '$.productId') = ${input.productId}`,
+        sql`json_extract(${sourceObservations.normalizedFactsJson}, '$.productId') IN (
+          WITH RECURSIVE merged_products(id) AS (
+            VALUES (${input.productId})
+            UNION ALL
+            SELECT products.id
+            FROM products
+            JOIN merged_products
+              ON products.merged_into_product_id = merged_products.id
+          )
+          SELECT id FROM merged_products
+        )`,
       ),
     )
-    .orderBy(asc(sourceObservations.observedAt))
-    .limit(input.limit * 4)
+    .orderBy(desc(sourceObservations.observedAt))
+    .limit(10_000)
 
-  const facts = rows.flatMap(({ offerKey, observedAt, normalizedFacts }) => {
-    const parsed = observedOfferFactsSchema.safeParse(normalizedFacts)
-    return parsed.success ? [{ offerKey, observedAt, ...parsed.data }] : []
-  })
+  const facts = rows.flatMap(
+    ({ listingId, sourceOfferKey, observedAt, normalizedFacts }) => {
+      if (listingId === null) return []
+      const parsed = observedOfferFactsSchema.safeParse(normalizedFacts)
+      return parsed.success
+        ? [
+            {
+              offerKey: `${listingId}:${sourceOfferKey}`,
+              observedAt,
+              ...parsed.data,
+            },
+          ]
+        : []
+    },
+  )
   return buildObservedPriceHistory(facts).slice(-input.limit)
 }
 
