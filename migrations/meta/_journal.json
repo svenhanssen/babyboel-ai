@@ -15,6 +15,13 @@
       "when": 1788011691446,
       "tag": "0001_useful_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788023703738,
+      "tag": "0002_known_spiral",
+      "breakpoints": true
     }
   ]
 }
