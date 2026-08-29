@@ -39,14 +39,28 @@ describe('deployment configuration guards', () => {
   const safeConfig = {
     env: {
       preview: {
-        vars: { APP_ENV: 'preview', ACQUISITION_MODE: 'fixture' },
+        vars: {
+          APP_ENV: 'preview',
+          ACQUISITION_MODE: 'fixture',
+          ACCESS_TEAM_DOMAIN: 'babyboel.cloudflareaccess.com',
+          ACCESS_AUD: 'preview-audience',
+          ACCESS_OPERATOR_SUBJECT: 'github|operator',
+          TRUSTED_ORIGIN: 'https://preview.babyboel.example',
+        },
         d1_databases: [{ binding: 'DB', database_name: 'babyboel-preview' }],
         r2_buckets: [
           { binding: 'EVIDENCE', bucket_name: 'babyboel-evidence-preview' },
         ],
       },
       production: {
-        vars: { APP_ENV: 'production', ACQUISITION_MODE: 'disabled' },
+        vars: {
+          APP_ENV: 'production',
+          ACQUISITION_MODE: 'disabled',
+          ACCESS_TEAM_DOMAIN: 'babyboel.cloudflareaccess.com',
+          ACCESS_AUD: 'production-audience',
+          ACCESS_OPERATOR_SUBJECT: 'github|operator',
+          TRUSTED_ORIGIN: 'https://babyboel.example',
+        },
         d1_databases: [{ binding: 'DB', database_name: 'babyboel-production' }],
         r2_buckets: [
           { binding: 'EVIDENCE', bucket_name: 'babyboel-evidence-production' },
@@ -67,7 +81,10 @@ describe('deployment configuration guards', () => {
           ...safeConfig.env,
           preview: {
             ...safeConfig.env.preview,
-            vars: { APP_ENV: 'preview', ACQUISITION_MODE: 'live' },
+            vars: {
+              ...safeConfig.env.preview.vars,
+              ACQUISITION_MODE: 'live',
+            },
           },
         },
       }),
@@ -87,5 +104,41 @@ describe('deployment configuration guards', () => {
         },
       }),
     ).toThrow('Preview cannot use the production D1 database')
+  })
+
+  it('rejects a deployed trusted origin that is not HTTPS', () => {
+    expect(() =>
+      validateDeploymentConfig({
+        ...safeConfig,
+        env: {
+          ...safeConfig.env,
+          production: {
+            ...safeConfig.env.production,
+            vars: {
+              ...safeConfig.env.production.vars,
+              TRUSTED_ORIGIN: 'http://babyboel.example',
+            },
+          },
+        },
+      }),
+    ).toThrow('Deployed trusted origin must use HTTPS')
+  })
+
+  it('keeps preview and production Access audiences isolated', () => {
+    expect(() =>
+      validateDeploymentConfig({
+        ...safeConfig,
+        env: {
+          ...safeConfig.env,
+          preview: {
+            ...safeConfig.env.preview,
+            vars: {
+              ...safeConfig.env.preview.vars,
+              ACCESS_AUD: safeConfig.env.production.vars.ACCESS_AUD,
+            },
+          },
+        },
+      }),
+    ).toThrow('Preview cannot use the production Access audience')
   })
 })

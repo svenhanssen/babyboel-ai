@@ -17,6 +17,10 @@
   "vars": {
     "APP_ENV": "local",
     "ACQUISITION_MODE": "fixture",
+    "ACCESS_TEAM_DOMAIN": "local.invalid",
+    "ACCESS_AUD": "local-unused",
+    "ACCESS_OPERATOR_SUBJECT": "local-operator",
+    "TRUSTED_ORIGIN": "http://localhost:3000",
   },
   "d1_databases": [
     {
@@ -46,6 +50,10 @@
       "vars": {
         "APP_ENV": "preview",
         "ACQUISITION_MODE": "fixture",
+        "ACCESS_TEAM_DOMAIN": "replace-preview.cloudflareaccess.com",
+        "ACCESS_AUD": "replace-preview-access-audience",
+        "ACCESS_OPERATOR_SUBJECT": "replace-operator-subject",
+        "TRUSTED_ORIGIN": "https://replace-preview.invalid",
       },
       "d1_databases": [
         {
@@ -75,6 +83,10 @@
       "vars": {
         "APP_ENV": "production",
         "ACQUISITION_MODE": "disabled",
+        "ACCESS_TEAM_DOMAIN": "replace-production.cloudflareaccess.com",
+        "ACCESS_AUD": "replace-production-access-audience",
+        "ACCESS_OPERATOR_SUBJECT": "replace-operator-subject",
+        "TRUSTED_ORIGIN": "https://replace-production.invalid",
       },
       "d1_databases": [
         {
