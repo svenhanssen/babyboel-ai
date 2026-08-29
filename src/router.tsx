@@ -7,7 +7,7 @@ export function getRouter() {
     routeTree,
     defaultPreload: 'intent',
     defaultNotFoundComponent: () => (
-      <main id="main">
+      <main className="page" id="main" tabIndex={-1}>
         <h1>Pagina niet gevonden</h1>
       </main>
     ),
