@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { PriceHistory } from '../ui/price-history'
+
 export const Route = createFileRoute('/')({
   component: Home,
 })
@@ -47,6 +49,24 @@ function Home() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section aria-labelledby="history-example-heading" className="example">
+        <p className="eyebrow">Controleerbare historie</p>
+        <h2 id="history-example-heading">Prijsontwikkeling zonder aannames</h2>
+        <p>
+          Dit voorbeeld laat zien hoe Babyboel waarnemingen toont. Een dag
+          zonder bewijs blijft zichtbaar als een onderbreking.
+        </p>
+        <PriceHistory
+          points={[
+            { observedOn: '2026-08-24', priceCents: 1299 },
+            { observedOn: '2026-08-25', priceCents: 1249 },
+            { observedOn: '2026-08-26', priceCents: null },
+            { observedOn: '2026-08-27', priceCents: 1199 },
+            { observedOn: '2026-08-28', priceCents: 1249 },
+          ]}
+        />
       </section>
     </main>
   )

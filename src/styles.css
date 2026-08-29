@@ -53,6 +53,7 @@
   --space-12: 3rem;
   --control-radius: 0.5rem;
   --card-radius: 0.75rem;
+  --transition-functional: 160ms ease;
   color: var(--text);
   background: var(--page);
   font-family:
@@ -158,6 +159,7 @@ h1,
 h2,
 h3 {
   line-height: 1.15;
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 
@@ -247,6 +249,10 @@ p {
   color: var(--text);
   background: var(--surface);
   cursor: pointer;
+  transition:
+    color var(--transition-functional),
+    border-color var(--transition-functional),
+    background-color var(--transition-functional);
 }
 
 .icon-button:hover {
@@ -300,6 +306,7 @@ p {
 .button {
   display: inline-flex;
   min-height: 2.75rem;
+  max-width: 100%;
   align-items: center;
   justify-content: center;
   padding: var(--space-2) var(--space-4);
@@ -308,7 +315,12 @@ p {
   color: var(--primary-ink);
   background: var(--primary);
   font-weight: 600;
+  overflow-wrap: anywhere;
+  text-align: center;
   text-decoration: none;
+  transition:
+    border-color var(--transition-functional),
+    background-color var(--transition-functional);
 }
 
 .button:hover {
@@ -321,6 +333,11 @@ p {
   display: grid;
   gap: var(--space-4);
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hero > *,
+.category-grid > * {
+  min-width: 0;
 }
 
 .surface {
@@ -337,6 +354,7 @@ p {
 .tag {
   display: inline-flex;
   min-height: 1.75rem;
+  max-width: 100%;
   align-items: center;
   padding-inline: var(--space-3);
   border: 1px solid var(--border);
@@ -345,6 +363,8 @@ p {
   background: var(--surface-raised);
   font-size: 0.75rem;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .page-heading {
@@ -377,6 +397,90 @@ p {
 
 .notice strong {
   color: var(--information);
+}
+
+.example {
+  margin-block-start: clamp(var(--space-12), 8vw, 6rem);
+}
+
+.price-history {
+  margin: var(--space-6) 0 0;
+  padding: clamp(var(--space-4), 4vw, var(--space-6));
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+}
+
+.price-history figcaption p {
+  color: var(--text-muted);
+}
+
+.price-history__title {
+  display: block;
+  margin-block-end: var(--space-2);
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.price-history__chart {
+  display: block;
+  width: 100%;
+  min-height: 12rem;
+  margin-block: var(--space-4) var(--space-6);
+  overflow: visible;
+}
+
+.price-history__grid {
+  stroke: var(--chart-grid);
+  stroke-dasharray: 3 8;
+  stroke-width: 1;
+}
+
+.price-history__line {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 5;
+}
+
+.price-history__point {
+  fill: var(--surface);
+  stroke: var(--chart-1);
+  stroke-width: 4;
+}
+
+.price-history__table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.price-history table {
+  width: 100%;
+  min-width: 32rem;
+  border-collapse: collapse;
+}
+
+.price-history caption {
+  padding-block-end: var(--space-2);
+  font-weight: 600;
+  text-align: start;
+}
+
+.price-history th,
+.price-history td {
+  padding: var(--space-3);
+  border-block-end: 1px solid var(--border);
+  text-align: start;
+}
+
+.price-history thead th {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.price-history tbody th {
+  font-weight: 400;
 }
 
 .site-footer {
@@ -412,10 +516,6 @@ p {
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
-}
-
-main:focus {
-  outline: none;
 }
 
 .numeric,

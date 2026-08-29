@@ -2,15 +2,15 @@ import { Moon, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
-const themeStorageKey = 'babyboel-theme'
-const darkThemeQuery = '(prefers-color-scheme: dark)'
+import { isTheme, themeStorageKey } from './theme'
+import type { Theme } from './theme'
 
-type Theme = 'light' | 'dark'
+const darkThemeQuery = '(prefers-color-scheme: dark)'
 
 function storedTheme(): Theme | null {
   try {
     const value = localStorage.getItem(themeStorageKey)
-    return value === 'light' || value === 'dark' ? value : null
+    return isTheme(value) ? value : null
   } catch {
     return null
   }

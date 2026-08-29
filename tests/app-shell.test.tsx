@@ -6,6 +6,7 @@ import axe from 'axe-core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppShell } from '../src/ui/app-shell'
+import { PriceHistory } from '../src/ui/price-history'
 
 function setSystemTheme(theme: 'light' | 'dark') {
   const matches = theme === 'dark'
@@ -36,6 +37,13 @@ describe('app shell', () => {
       <AppShell>
         <main id="main">
           <h1>Vergelijk aanbiedingen</h1>
+          <PriceHistory
+            points={[
+              { observedOn: '2026-08-27', priceCents: 1249 },
+              { observedOn: '2026-08-28', priceCents: null },
+              { observedOn: '2026-08-29', priceCents: 1199 },
+            ]}
+          />
         </main>
       </AppShell>,
     )
@@ -48,6 +56,10 @@ describe('app shell', () => {
     expect(
       screen.getByRole('navigation', { name: 'Hoofdnavigatie' }),
     ).toBeTruthy()
+    expect(
+      screen.getByRole('table', { name: 'Prijsgeschiedenis als tabel' }),
+    ).toBeTruthy()
+    expect(screen.getByText('Geen waarneming')).toBeTruthy()
     expect(
       (
         await axe.run(container, {

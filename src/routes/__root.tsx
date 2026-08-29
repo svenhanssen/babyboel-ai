@@ -5,13 +5,13 @@ import {
   createRootRoute,
   useRouterState,
 } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import interRegular from '@fontsource/inter/files/inter-latin-400-normal.woff2?url'
+import fredokaSemibold from '@fontsource/fredoka/files/fredoka-latin-600-normal.woff2?url'
 import { AppShell } from '../ui/app-shell'
+import { themeScript } from '../ui/theme'
 import appCss from '../styles.css?url'
-
-const themeScript = `(function(){try{var t=localStorage.getItem('babyboel-theme');if(t==='light'||t==='dark'){document.documentElement.dataset.theme=t}}catch(e){}})()`
 
 export const Route = createRootRoute({
   head: () => ({
@@ -40,6 +40,13 @@ export const Route = createRootRoute({
         type: 'font/woff2',
         crossOrigin: 'anonymous',
       },
+      {
+        rel: 'preload',
+        href: fredokaSemibold,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous',
+      },
       { rel: 'stylesheet', href: appCss },
     ],
   }),
@@ -54,8 +61,12 @@ function RouteFocusManager() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
+  const previousPathname = useRef(pathname)
 
   useEffect(() => {
+    if (pathname === previousPathname.current) return
+
+    previousPathname.current = pathname
     document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
   }, [pathname])
 
