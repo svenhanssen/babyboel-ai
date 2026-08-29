@@ -238,8 +238,13 @@ export const listings = sqliteTable(
       enum: ['unmatched', 'matched', 'review', 'out_of_scope'],
     }).notNull(),
     matchMethod: text('match_method', {
-      enum: ['approved_sku', 'verified_gtin', 'manual'],
+      enum: ['approved_listing', 'verified_gtin', 'manual'],
     }),
+    matchFingerprint: text('match_fingerprint'),
+    automaticReuseBlocked: boolean('automatic_reuse_blocked')
+      .notNull()
+      .default(false),
+    lastMatchDecisionAt: timestamp('last_match_decision_at'),
     latestObservationId: text('latest_observation_id').references(
       (): AnySQLiteColumn => sourceObservations.id,
     ),
@@ -279,11 +284,15 @@ export const listings = sqliteTable(
     ),
     check(
       'listings_match_method_check',
-      sql`${table.matchMethod} IS NULL OR ${table.matchMethod} IN ('approved_sku', 'verified_gtin', 'manual')`,
+      sql`${table.matchMethod} IS NULL OR ${table.matchMethod} IN ('approved_listing', 'verified_gtin', 'manual')`,
+    ),
+    check(
+      'listings_automatic_reuse_blocked_check',
+      sql`${table.automaticReuseBlocked} IN (0, 1)`,
     ),
     check(
       'listings_match_coherence_check',
-      sql`(${table.matchStatus} = 'matched' AND ${table.packageId} IS NOT NULL AND ${table.matchMethod} IS NOT NULL) OR (${table.matchStatus} <> 'matched' AND ${table.matchMethod} IS NULL)`,
+      sql`(${table.matchStatus} = 'matched' AND ${table.packageId} IS NOT NULL AND ${table.matchMethod} IS NOT NULL AND ${table.lastMatchDecisionAt} IS NOT NULL) OR (${table.matchStatus} <> 'matched' AND ${table.matchMethod} IS NULL)`,
     ),
   ],
 )

@@ -151,7 +151,8 @@ describe('normalized D1 catalog boundary', () => {
         INSERT INTO listings (
           id, retailer_id, package_id, retailer_sku, channel,
           seller_retailer_id, source_title, outbound_destination,
-          availability, match_status, match_method, confirmed_at,
+          availability, match_status, match_method, last_match_decision_at,
+          confirmed_at,
           miss_count, created_at, updated_at
         ) VALUES (
           '018f47a0-0000-7000-8000-000000000013',
@@ -160,7 +161,7 @@ describe('normalized D1 catalog boundary', () => {
           'MARKETPLACE', 'nationwide_online',
           '018f47a0-0000-7000-8000-ffffffffffff',
           'Third-party Listing', 'https://retailer.example/marketplace',
-          'available', 'matched', 'manual', ${fixtureNow}, 0,
+          'available', 'matched', 'manual', ${fixtureNow}, ${fixtureNow}, 0,
           ${fixtureNow}, ${fixtureNow}
         )
       `),

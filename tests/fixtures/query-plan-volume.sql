@@ -46,7 +46,7 @@ WITH RECURSIVE fixture_numbers(value) AS (
 INSERT INTO listings (
   id, retailer_id, package_id, retailer_sku, channel, seller_retailer_id,
   source_title, outbound_destination, availability, match_status, match_method,
-  confirmed_at, miss_count, created_at, updated_at
+  last_match_decision_at, confirmed_at, miss_count, created_at, updated_at
 )
 SELECT
   printf('018f47b3-%04x-7000-8000-%012x', value, value),
@@ -60,6 +60,7 @@ SELECT
   'available',
   'matched',
   'manual',
+  1787990400000,
   1787990400000,
   0,
   1787990400000,
