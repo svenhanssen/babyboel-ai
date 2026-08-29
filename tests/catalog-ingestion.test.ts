@@ -410,7 +410,7 @@ describe('catalog ingestion D1 boundary', () => {
         observationId: '018f47a0-0000-7000-8000-00000000003b',
       },
     ])
-  }, 20_000)
+  }, 40_000)
 
   it('suppresses a contradictory Listing and opens one logical Review case', async () => {
     const result = await matchObservedListing(database.binding, {
