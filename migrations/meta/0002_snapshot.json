@@ -88,11 +88,7 @@
       "indexes": {
         "audit_log_target_time_idx": {
           "name": "audit_log_target_time_idx",
-          "columns": [
-            "target_type",
-            "target_id",
-            "occurred_at"
-          ],
+          "columns": ["target_type", "target_id", "occurred_at"],
           "isUnique": false
         }
       },
@@ -101,12 +97,8 @@
           "name": "audit_log_prior_audit_id_audit_log_id_fk",
           "tableFrom": "audit_log",
           "tableTo": "audit_log",
-          "columnsFrom": [
-            "prior_audit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prior_audit_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -170,16 +162,12 @@
       "indexes": {
         "brands_name_unique": {
           "name": "brands_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         },
         "brands_slug_unique": {
           "name": "brands_slug_unique",
-          "columns": [
-            "slug"
-          ],
+          "columns": ["slug"],
           "isUnique": true
         }
       },
@@ -263,17 +251,12 @@
       "indexes": {
         "evidence_artifacts_r2_key_unique": {
           "name": "evidence_artifacts_r2_key_unique",
-          "columns": [
-            "r2_key"
-          ],
+          "columns": ["r2_key"],
           "isUnique": true
         },
         "evidence_artifacts_retention_idx": {
           "name": "evidence_artifacts_retention_idx",
-          "columns": [
-            "deleted_at",
-            "retention_deadline"
-          ],
+          "columns": ["deleted_at", "retention_deadline"],
           "isUnique": false
         }
       },
@@ -282,12 +265,8 @@
           "name": "evidence_artifacts_retailer_source_id_retailer_sources_id_fk",
           "tableFrom": "evidence_artifacts",
           "tableTo": "retailer_sources",
-          "columnsFrom": [
-            "retailer_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -455,20 +434,12 @@
       "indexes": {
         "listings_identity_unique": {
           "name": "listings_identity_unique",
-          "columns": [
-            "retailer_id",
-            "channel",
-            "retailer_sku"
-          ],
+          "columns": ["retailer_id", "channel", "retailer_sku"],
           "isUnique": true
         },
         "listings_package_status_idx": {
           "name": "listings_package_status_idx",
-          "columns": [
-            "package_id",
-            "match_status",
-            "availability"
-          ],
+          "columns": ["package_id", "match_status", "availability"],
           "isUnique": false
         }
       },
@@ -477,12 +448,8 @@
           "name": "listings_retailer_id_retailers_id_fk",
           "tableFrom": "listings",
           "tableTo": "retailers",
-          "columnsFrom": [
-            "retailer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -490,12 +457,8 @@
           "name": "listings_package_id_packages_id_fk",
           "tableFrom": "listings",
           "tableTo": "packages",
-          "columnsFrom": [
-            "package_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["package_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -503,12 +466,8 @@
           "name": "listings_seller_retailer_id_retailers_id_fk",
           "tableFrom": "listings",
           "tableTo": "retailers",
-          "columnsFrom": [
-            "seller_retailer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["seller_retailer_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -516,12 +475,8 @@
           "name": "listings_latest_observation_id_source_observations_id_fk",
           "tableFrom": "listings",
           "tableTo": "source_observations",
-          "columnsFrom": [
-            "latest_observation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["latest_observation_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -700,10 +655,7 @@
       "indexes": {
         "offers_lane_unique": {
           "name": "offers_lane_unique",
-          "columns": [
-            "listing_id",
-            "source_offer_key"
-          ],
+          "columns": ["listing_id", "source_offer_key"],
           "isUnique": true
         },
         "offers_current_ranking_idx": {
@@ -718,11 +670,7 @@
         },
         "offers_listing_current_idx": {
           "name": "offers_listing_current_idx",
-          "columns": [
-            "listing_id",
-            "availability",
-            "confirmed_at"
-          ],
+          "columns": ["listing_id", "availability", "confirmed_at"],
           "isUnique": false
         }
       },
@@ -731,12 +679,8 @@
           "name": "offers_listing_id_listings_id_fk",
           "tableFrom": "offers",
           "tableTo": "listings",
-          "columnsFrom": [
-            "listing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["listing_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -744,12 +688,8 @@
           "name": "offers_latest_observation_id_source_observations_id_fk",
           "tableFrom": "offers",
           "tableTo": "source_observations",
-          "columnsFrom": [
-            "latest_observation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["latest_observation_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -869,17 +809,12 @@
       "indexes": {
         "packages_gtin_unique": {
           "name": "packages_gtin_unique",
-          "columns": [
-            "gtin"
-          ],
+          "columns": ["gtin"],
           "isUnique": true
         },
         "packages_product_idx": {
           "name": "packages_product_idx",
-          "columns": [
-            "product_id",
-            "lifecycle"
-          ],
+          "columns": ["product_id", "lifecycle"],
           "isUnique": false
         }
       },
@@ -888,12 +823,8 @@
           "name": "packages_product_id_products_id_fk",
           "tableFrom": "packages",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1017,16 +948,12 @@
       "indexes": {
         "products_identity_unique": {
           "name": "products_identity_unique",
-          "columns": [
-            "identity_key"
-          ],
+          "columns": ["identity_key"],
           "isUnique": true
         },
         "products_slug_unique": {
           "name": "products_slug_unique",
-          "columns": [
-            "slug"
-          ],
+          "columns": ["slug"],
           "isUnique": true
         },
         "products_browse_idx": {
@@ -1045,12 +972,8 @@
           "name": "products_brand_id_brands_id_fk",
           "tableFrom": "products",
           "tableTo": "brands",
-          "columnsFrom": [
-            "brand_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["brand_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1058,12 +981,8 @@
           "name": "products_successor_product_id_products_id_fk",
           "tableFrom": "products",
           "tableTo": "products",
-          "columnsFrom": [
-            "successor_product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["successor_product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1071,12 +990,8 @@
           "name": "products_merged_into_product_id_products_id_fk",
           "tableFrom": "products",
           "tableTo": "products",
-          "columnsFrom": [
-            "merged_into_product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["merged_into_product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1217,10 +1132,7 @@
       "indexes": {
         "retailer_runs_retailer_started_idx": {
           "name": "retailer_runs_retailer_started_idx",
-          "columns": [
-            "retailer_id",
-            "started_at"
-          ],
+          "columns": ["retailer_id", "started_at"],
           "isUnique": false
         }
       },
@@ -1229,12 +1141,8 @@
           "name": "retailer_runs_retailer_id_retailers_id_fk",
           "tableFrom": "retailer_runs",
           "tableTo": "retailers",
-          "columnsFrom": [
-            "retailer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1349,18 +1257,12 @@
       "indexes": {
         "retailer_sources_identity_unique": {
           "name": "retailer_sources_identity_unique",
-          "columns": [
-            "retailer_id",
-            "source_key"
-          ],
+          "columns": ["retailer_id", "source_key"],
           "isUnique": true
         },
         "retailer_sources_authorization_idx": {
           "name": "retailer_sources_authorization_idx",
-          "columns": [
-            "authorization_status",
-            "expires_at"
-          ],
+          "columns": ["authorization_status", "expires_at"],
           "isUnique": false
         }
       },
@@ -1369,12 +1271,8 @@
           "name": "retailer_sources_retailer_id_retailers_id_fk",
           "tableFrom": "retailer_sources",
           "tableTo": "retailers",
-          "columnsFrom": [
-            "retailer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1487,17 +1385,12 @@
       "indexes": {
         "retailers_slug_unique": {
           "name": "retailers_slug_unique",
-          "columns": [
-            "slug"
-          ],
+          "columns": ["slug"],
           "isUnique": true
         },
         "retailers_lifecycle_name_idx": {
           "name": "retailers_lifecycle_name_idx",
-          "columns": [
-            "lifecycle",
-            "name"
-          ],
+          "columns": ["lifecycle", "name"],
           "isUnique": false
         }
       },
@@ -1628,20 +1521,12 @@
       "indexes": {
         "review_cases_queue_idx": {
           "name": "review_cases_queue_idx",
-          "columns": [
-            "status",
-            "blocks_publication",
-            "opened_at"
-          ],
+          "columns": ["status", "blocks_publication", "opened_at"],
           "isUnique": false
         },
         "review_cases_logical_unique": {
           "name": "review_cases_logical_unique",
-          "columns": [
-            "retailer_id",
-            "listing_id",
-            "uncertainty_type"
-          ],
+          "columns": ["retailer_id", "listing_id", "uncertainty_type"],
           "isUnique": true
         }
       },
@@ -1650,12 +1535,8 @@
           "name": "review_cases_retailer_id_retailers_id_fk",
           "tableFrom": "review_cases",
           "tableTo": "retailers",
-          "columnsFrom": [
-            "retailer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1663,12 +1544,8 @@
           "name": "review_cases_listing_id_listings_id_fk",
           "tableFrom": "review_cases",
           "tableTo": "listings",
-          "columnsFrom": [
-            "listing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["listing_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1676,12 +1553,8 @@
           "name": "review_cases_latest_observation_id_source_observations_id_fk",
           "tableFrom": "review_cases",
           "tableTo": "source_observations",
-          "columnsFrom": [
-            "latest_observation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["latest_observation_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1788,11 +1661,7 @@
       "indexes": {
         "source_aliases_identity_unique": {
           "name": "source_aliases_identity_unique",
-          "columns": [
-            "retailer_source_id",
-            "field",
-            "raw_value"
-          ],
+          "columns": ["retailer_source_id", "field", "raw_value"],
           "isUnique": true
         }
       },
@@ -1801,12 +1670,8 @@
           "name": "source_aliases_retailer_source_id_retailer_sources_id_fk",
           "tableFrom": "source_aliases",
           "tableTo": "retailer_sources",
-          "columnsFrom": [
-            "retailer_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2014,18 +1879,12 @@
         },
         "source_observations_listing_time_idx": {
           "name": "source_observations_listing_time_idx",
-          "columns": [
-            "listing_id",
-            "observed_at"
-          ],
+          "columns": ["listing_id", "observed_at"],
           "isUnique": false
         },
         "source_observations_offer_time_idx": {
           "name": "source_observations_offer_time_idx",
-          "columns": [
-            "offer_id",
-            "observed_at"
-          ],
+          "columns": ["offer_id", "observed_at"],
           "isUnique": false
         }
       },
@@ -2034,12 +1893,8 @@
           "name": "source_observations_retailer_source_id_retailer_sources_id_fk",
           "tableFrom": "source_observations",
           "tableTo": "retailer_sources",
-          "columnsFrom": [
-            "retailer_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2047,12 +1902,8 @@
           "name": "source_observations_retailer_run_id_retailer_runs_id_fk",
           "tableFrom": "source_observations",
           "tableTo": "retailer_runs",
-          "columnsFrom": [
-            "retailer_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["retailer_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2060,12 +1911,8 @@
           "name": "source_observations_listing_id_listings_id_fk",
           "tableFrom": "source_observations",
           "tableTo": "listings",
-          "columnsFrom": [
-            "listing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["listing_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2073,12 +1920,8 @@
           "name": "source_observations_offer_id_offers_id_fk",
           "tableFrom": "source_observations",
           "tableTo": "offers",
-          "columnsFrom": [
-            "offer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["offer_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2086,12 +1929,8 @@
           "name": "source_observations_evidence_artifact_id_evidence_artifacts_id_fk",
           "tableFrom": "source_observations",
           "tableTo": "evidence_artifacts",
-          "columnsFrom": [
-            "evidence_artifact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evidence_artifact_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
