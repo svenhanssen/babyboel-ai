@@ -26,9 +26,12 @@
     "deploy:production": "CLOUDFLARE_ENV=production pnpm build && CLOUDFLARE_ENV=production wrangler deploy"
   },
   "dependencies": {
+    "@fontsource/fredoka": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",
     "drizzle-orm": "^0.45.2",
+    "lucide-react": "^1.37.0",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"
@@ -36,16 +39,20 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "latest",
     "@eslint/js": "latest",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
     "@types/node": "^24.13.3",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@typescript-eslint/eslint-plugin": "latest",
     "@typescript-eslint/parser": "latest",
     "@vitejs/plugin-react": "latest",
+    "axe-core": "^4.13.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "globals": "latest",
+    "jsdom": "^30.0.1",
     "jsonc-parser": "^3.3.1",
     "prettier": "latest",
     "tsx": "^4.23.12",
