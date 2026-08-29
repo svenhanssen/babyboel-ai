@@ -9,7 +9,9 @@ acquisition.
 
 - **TanStack Start + React** provide server-rendered public and Admin routes.
 - **Cloudflare Workers** hosts the application and the scheduled entrypoint.
-- **D1** will hold normalized catalog and operational state.
+- **D1 + Drizzle** hold normalized current catalog state, append-only source
+  observations, private evidence metadata, Review state, and compact audit
+  facts. There is no replay or projection layer.
 - **R2** will hold bounded evidence artifacts.
 - **Cloudflare Email** is declared for later operational alerts.
 - **Fixture mode** is mandatory locally and in previews. Production acquisition
@@ -61,8 +63,24 @@ pnpm build
 
 Run all gates with `pnpm check`. Configuration validation fails if preview
 acquisition is not fixture-only or preview D1/R2 names match production.
-Migration validation checks forward numbering and, once SQL migrations exist,
-applies them to a fresh local D1 store.
+Migration validation checks Drizzle metadata and schema drift, strict tables,
+append-only observation/audit triggers, forward numbering, and application of
+all migrations to a fresh local D1 store.
+
+## Database changes
+
+Edit `src/db/schema.ts`, then generate and review a forward-only migration:
+
+```sh
+pnpm db:generate
+pnpm validate:migrations
+pnpm db:migrate:local
+```
+
+The deterministic integration fixture is
+`tests/fixtures/catalog.sql`. Database tests apply migrations to an isolated
+local D1 store and verify constraints, observation idempotency, append-only
+history, and query plans without external credentials.
 
 ## Environments
 
