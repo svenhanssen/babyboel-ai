@@ -70,14 +70,16 @@ describe('normalized D1 catalog boundary', () => {
     })
   })
 
-  it('rejects invalid UUIDv7 identities and missing foreign keys', () => {
+  it('rejects invalid UUIDv7 identities', () => {
     expect(() =>
       database.execute(`
         INSERT INTO brands (id, name, slug, created_at, updated_at)
         VALUES ('not-a-uuid', 'Invalid', 'invalid', 1, 1)
       `),
     ).toThrow(/brands_id_uuidv7_check/)
+  })
 
+  it('rejects missing foreign keys', () => {
     expect(() =>
       database.execute(`
         INSERT INTO packages (
@@ -91,7 +93,7 @@ describe('normalized D1 catalog boundary', () => {
     ).toThrow(/FOREIGN KEY constraint failed/)
   })
 
-  it('enforces launch taxonomy and exact offer operands', () => {
+  it('enforces the launch taxonomy', () => {
     expect(() =>
       database.execute(`
         INSERT INTO products (
@@ -105,7 +107,9 @@ describe('normalized D1 catalog boundary', () => {
         )
       `),
     ).toThrow(/products_size_applicability_check/)
+  })
 
+  it('stores exact Offer operands', () => {
     expect(() =>
       database.execute(`
         INSERT INTO offers (
@@ -121,7 +125,9 @@ describe('normalized D1 catalog boundary', () => {
         )
       `),
     ).toThrow(/offers_unit_price_check/)
+  })
 
+  it('derives Offer units from Package quantity', () => {
     expect(() =>
       database.execute(`
         INSERT INTO offers (
@@ -139,7 +145,7 @@ describe('normalized D1 catalog boundary', () => {
     ).toThrow(/offer total units do not match its Package quantity/)
   })
 
-  it('rejects marketplace sellers and malformed retained JSON', () => {
+  it('rejects marketplace sellers', () => {
     expect(() =>
       database.execute(`
         INSERT INTO listings (
@@ -159,7 +165,9 @@ describe('normalized D1 catalog boundary', () => {
         )
       `),
     ).toThrow(/listings_seller_check/)
+  })
 
+  it('rejects malformed retained JSON', () => {
     expect(() =>
       database.execute(`
         INSERT INTO audit_log (
@@ -177,7 +185,7 @@ describe('normalized D1 catalog boundary', () => {
   })
 
   it('selects current Offers using expiry and the 48-hour freshness boundary', () => {
-    database.execute(`
+    const current = database.execute<{ sourceOfferKey: string }>(`
       INSERT INTO offers (
         id, listing_id, source_offer_key, payable_amount_minor, currency,
         required_package_count, total_units, unit_price_numerator,
@@ -195,10 +203,7 @@ describe('normalized D1 catalog boundary', () => {
           '018f47a0-0000-7000-8000-000000000006',
           'expired', 1799, 'EUR', 1, 80, 1799, 80, 'universal',
           ${fixtureNow - 100_000}, ${fixtureNow - 1}, 'available', 1, 1
-        )
-    `)
-
-    const current = database.execute<{ sourceOfferKey: string }>(`
+        );
       SELECT source_offer_key AS sourceOfferKey
       FROM offers
       WHERE listing_id = '018f47a0-0000-7000-8000-000000000006'
@@ -231,7 +236,7 @@ describe('normalized D1 catalog boundary', () => {
     ).toThrow(/UNIQUE constraint failed/)
   })
 
-  it('keeps observations and audit facts append-only', () => {
+  it('keeps observations append-only', () => {
     expect(() =>
       database.execute(`
         UPDATE source_observations
@@ -239,7 +244,9 @@ describe('normalized D1 catalog boundary', () => {
         WHERE id = '018f47a0-0000-7000-8000-00000000000a'
       `),
     ).toThrow(/source observations are append-only/)
+  })
 
+  it('keeps audit facts append-only', () => {
     expect(() =>
       database.execute(`
         DELETE FROM audit_log
