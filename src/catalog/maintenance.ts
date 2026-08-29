@@ -395,6 +395,7 @@ const correctProductSchema = mutationMetadataSchema.extend({
   lifecycle: z.enum(['active', 'inactive']),
   successorProductId: uuidV7Schema.nullable(),
   mergedIntoProductId: uuidV7Schema.nullable(),
+  restorePackageIds: z.array(uuidV7Schema).max(100).default([]),
 })
 
 export async function correctProduct(
@@ -411,6 +412,11 @@ export async function correctProduct(
     (input.lifecycle === 'active' && input.mergedIntoProductId !== null)
   ) {
     throw new Error('INVALID_PRODUCT_CORRECTION')
+  }
+  if (
+    new Set(input.restorePackageIds).size !== input.restorePackageIds.length
+  ) {
+    throw new Error('DUPLICATE_PACKAGE_CORRECTION')
   }
 
   const current = await database
@@ -444,6 +450,26 @@ export async function correctProduct(
   if (!current) throw new Error('PRODUCT_NOT_FOUND')
   if (current.updatedAt !== input.expectedUpdatedAt) {
     return { status: 'conflict' as const, version: current.updatedAt }
+  }
+  if (input.restorePackageIds.length > 0) {
+    if (
+      current.mergedIntoProductId === null ||
+      input.lifecycle !== 'active' ||
+      input.mergedIntoProductId !== null
+    ) {
+      throw new Error('INVALID_PACKAGE_RESTORE')
+    }
+    const placeholders = input.restorePackageIds.map(() => '?').join(', ')
+    const restorable = await database
+      .prepare(
+        `SELECT id FROM packages
+         WHERE product_id = ? AND id IN (${placeholders})`,
+      )
+      .bind(current.mergedIntoProductId, ...input.restorePackageIds)
+      .all<{ id: string }>()
+    if (restorable.results.length !== input.restorePackageIds.length) {
+      throw new Error('PACKAGE_RESTORE_CONFLICT')
+    }
   }
 
   for (const relatedId of [
@@ -499,6 +525,29 @@ export async function correctProduct(
     'successorProductId',
     'mergedIntoProductId',
   ]
+  const restorePackages =
+    input.restorePackageIds.length === 0
+      ? null
+      : database
+          .prepare(
+            `UPDATE packages
+             SET product_id = ?, updated_at = ?
+             WHERE id IN (${input.restorePackageIds.map(() => '?').join(', ')})
+               AND product_id = ?
+               AND EXISTS (
+                 SELECT 1 FROM products
+                 WHERE id = ? AND lifecycle = 'active'
+                   AND merged_into_product_id IS NULL AND updated_at = ?
+               )`,
+          )
+          .bind(
+            input.productId,
+            input.changedAt,
+            ...input.restorePackageIds,
+            current.mergedIntoProductId,
+            input.productId,
+            input.changedAt,
+          )
   const audit = auditStatement(database, {
     metadata,
     actor: untrustedInput.actor,
@@ -517,14 +566,17 @@ export async function correctProduct(
         lifecycle: input.lifecycle,
         successorProductId: input.successorProductId,
         mergedIntoProductId: input.mergedIntoProductId,
+        restoredPackageCount: input.restorePackageIds.length,
       },
-      fields,
+      [...fields, 'restoredPackageCount'],
       metadata.evidenceReference,
     ),
     guardTable: 'products',
     guardVersion: input.changedAt,
   })
-  const results = await database.batch([update, audit])
+  const results = await database.batch(
+    restorePackages ? [update, restorePackages, audit] : [update, audit],
+  )
   if (!changedOneRow(results[0])) {
     return {
       status: 'conflict' as const,

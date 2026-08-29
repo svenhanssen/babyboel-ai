@@ -12,7 +12,7 @@ import { createD1TestDatabase, type D1TestDatabase } from './d1'
 const fixturePath = resolve('tests/fixtures/catalog.sql')
 const now = 1_787_990_500_000
 const offerObservedAt = now + 10
-const matchDecidedAt = now + 20
+const matchDecidedAt = now + 200
 const observation = {
   id: '018f47a0-0000-7000-8000-000000000030',
   retailerSourceId: '018f47a0-0000-7000-8000-000000000002',
@@ -128,6 +128,119 @@ describe('catalog ingestion D1 boundary', () => {
     ])
   }, 20_000)
 
+  it('retains identical evidence from a later run and refreshes current truth', async () => {
+    const laterObservedAt = offerObservedAt + 100
+    database.execute(`
+      INSERT INTO retailer_runs (
+        id, retailer_id, origin, started_at, finished_at, status,
+        fetched_count, accepted_count, rejected_count, confirmed_count,
+        full_traversal
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000038',
+        '018f47a0-0000-7000-8000-000000000001', 'scheduled',
+        ${laterObservedAt - 10}, ${laterObservedAt}, 'complete',
+        1, 1, 0, 1, 1
+      )
+    `)
+
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...observation,
+        id: '018f47a0-0000-7000-8000-000000000039',
+        retailerRunId: '018f47a0-0000-7000-8000-000000000038',
+        sourceOfferKey: 'single',
+        observedAt: laterObservedAt,
+        retrievedAt: laterObservedAt,
+        responseIntegrityHash: 'sha256:offer-update',
+        issueCodes: [],
+        normalizedFacts: {
+          payableAmountMinor: 1_799,
+          totalUnits: 160,
+          requiredPackageCount: 2,
+          eligibility: 'universal',
+          availability: 'available',
+        },
+        listingId: '018f47a0-0000-7000-8000-000000000006',
+        offerId: '018f47a0-0000-7000-8000-000000000007',
+        payableAmountMinor: 1_799,
+        requiredPackageCount: 2,
+        eligibility: 'universal',
+        conditionText: '2 verpakkingen',
+        availability: 'available',
+        declaredExpiresAt: null,
+        outboundDestination: 'https://retailer.example/fixture-brand-4-plus',
+      }),
+    ).resolves.toEqual({
+      status: 'updated',
+      offerId: '018f47a0-0000-7000-8000-000000000007',
+    })
+
+    expect(
+      database.execute<{ confirmedAt: number; observations: number }>(`
+        SELECT offers.confirmed_at AS confirmedAt,
+          (
+            SELECT COUNT(*) FROM source_observations
+            WHERE response_integrity_hash = 'sha256:offer-update'
+          ) AS observations
+        FROM offers
+        WHERE id = '018f47a0-0000-7000-8000-000000000007'
+      `),
+    ).toEqual([{ confirmedAt: laterObservedAt, observations: 2 }])
+  }, 20_000)
+
+  it('retains delayed evidence without rewinding current truth', async () => {
+    const delayedObservedAt = offerObservedAt + 50
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...observation,
+        id: '018f47a0-0000-7000-8000-00000000003a',
+        sourceOfferKey: 'single',
+        observedAt: delayedObservedAt,
+        retrievedAt: delayedObservedAt,
+        responseIntegrityHash: 'sha256:delayed-offer',
+        issueCodes: [],
+        normalizedFacts: {
+          payableAmountMinor: 999,
+          totalUnits: 80,
+          requiredPackageCount: 1,
+          eligibility: 'universal',
+          availability: 'unavailable',
+        },
+        listingId: '018f47a0-0000-7000-8000-000000000006',
+        offerId: '018f47a0-0000-7000-8000-000000000007',
+        payableAmountMinor: 999,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        conditionText: null,
+        availability: 'unavailable',
+        declaredExpiresAt: null,
+        outboundDestination: 'https://retailer.example/fixture-brand-4-plus',
+      }),
+    ).resolves.toEqual({
+      status: 'historical',
+      offerId: '018f47a0-0000-7000-8000-000000000007',
+    })
+
+    expect(
+      database.execute<{
+        amount: number
+        availability: string
+        observationId: string
+      }>(`
+        SELECT payable_amount_minor AS amount, availability,
+          latest_observation_id AS observationId
+        FROM offers
+        WHERE id = '018f47a0-0000-7000-8000-000000000007'
+      `),
+    ).toEqual([
+      {
+        amount: 1799,
+        availability: 'available',
+        observationId: '018f47a0-0000-7000-8000-000000000039',
+      },
+    ])
+  }, 20_000)
+
   it('requires clean retained Offer evidence on a non-identity lane', async () => {
     const validInput = {
       ...observation,
@@ -219,7 +332,7 @@ describe('catalog ingestion D1 boundary', () => {
       listingId: '018f47a0-0000-7000-8000-000000000006',
       observationId: observation.id,
       reviewCaseId: '018f47a0-0000-7000-8000-000000000032',
-      expectedUpdatedAt: offerObservedAt,
+      expectedUpdatedAt: offerObservedAt + 100,
       decidedAt: matchDecidedAt,
       blockAutomaticReuse: true,
     })

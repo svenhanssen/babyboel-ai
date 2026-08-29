@@ -562,6 +562,7 @@ export const sourceObservations = sqliteTable(
     check('source_observations_id_uuidv7_check', uuidV7Check(table.id)),
     uniqueIndex('source_observations_natural_unique').on(
       table.retailerSourceId,
+      table.retailerRunId,
       table.sourceListingKey,
       table.sourceOfferKey,
       table.responseIntegrityHash,

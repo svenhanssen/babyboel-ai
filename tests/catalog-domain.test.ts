@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildProductIdentityKey,
-  buildObservedPriceHistory,
+  buildObservedPriceChanges,
   calculateOfferPrice,
   createSourceNormalizer,
   decideListingMatch,
@@ -225,7 +225,7 @@ describe('catalog domain', () => {
   })
 
   it('keeps only changed universal price points and marks evidence gaps', () => {
-    const history = buildObservedPriceHistory([
+    const history = buildObservedPriceChanges([
       {
         offerKey: 'single',
         observedAt: now - 100_000,
@@ -327,7 +327,7 @@ describe('catalog domain', () => {
 
   it('expires unreconfirmed competing Offers from Product history', () => {
     expect(
-      buildObservedPriceHistory([
+      buildObservedPriceChanges([
         {
           offerKey: 'cheap',
           observedAt: 0,

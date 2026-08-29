@@ -258,6 +258,7 @@ describe('catalog maintenance D1 boundary', () => {
         lifecycle: 'active',
         successorProductId: null,
         mergedIntoProductId: null,
+        restorePackageIds: ['018f47a0-0000-7000-8000-000000000043'],
         actor,
         auditId: '018f47a0-0000-7000-8000-000000000046',
         reason: 'Correct the mistaken merge forward without deleting history',
@@ -271,11 +272,21 @@ describe('catalog maintenance D1 boundary', () => {
       database.execute<{
         lifecycle: string
         mergedInto: string | null
+        packageProductId: string
       }>(`
-        SELECT lifecycle, merged_into_product_id AS mergedInto
+        SELECT products.lifecycle, products.merged_into_product_id AS mergedInto,
+          packages.product_id AS packageProductId
         FROM products
-        WHERE id = '018f47a0-0000-7000-8000-000000000042'
+        JOIN packages
+          ON packages.id = '018f47a0-0000-7000-8000-000000000043'
+        WHERE products.id = '018f47a0-0000-7000-8000-000000000042'
       `),
-    ).toEqual([{ lifecycle: 'active', mergedInto: null }])
+    ).toEqual([
+      {
+        lifecycle: 'active',
+        mergedInto: null,
+        packageProductId: '018f47a0-0000-7000-8000-000000000042',
+      },
+    ])
   }, 60_000)
 })

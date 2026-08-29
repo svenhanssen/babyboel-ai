@@ -2,10 +2,12 @@ import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import {
+  findActivePackageByGtinAlias,
+  findActivePackageByRetailerAlias,
   findListingMatchCandidates,
   listCurrentProductOffers,
+  listProductObservedPriceChanges,
   listProductAlternatives,
-  listProductPriceHistory,
 } from '../src/catalog/service'
 import { createD1TestDatabase, type D1TestDatabase } from './d1'
 
@@ -156,9 +158,36 @@ describe('catalog service D1 boundary', () => {
     ])
   })
 
+  it('resolves active Package aliases without guessing', async () => {
+    await expect(
+      findActivePackageByGtinAlias(database.binding, {
+        gtin: '08712345678903',
+      }),
+    ).resolves.toEqual({
+      packageId: '018f47a0-0000-7000-8000-000000000005',
+      productId: '018f47a0-0000-7000-8000-000000000004',
+    })
+    await expect(
+      findActivePackageByRetailerAlias(database.binding, {
+        retailerId: '018f47a0-0000-7000-8000-000000000001',
+        retailerSku: 'SKU-4PLUS-80',
+      }),
+    ).resolves.toEqual({
+      listingId: '018f47a0-0000-7000-8000-000000000006',
+      packageId: '018f47a0-0000-7000-8000-000000000005',
+      productId: '018f47a0-0000-7000-8000-000000000004',
+    })
+    await expect(
+      findActivePackageByRetailerAlias(database.binding, {
+        retailerId: '018f47a0-0000-7000-8000-000000000001',
+        retailerSku: 'unknown',
+      }),
+    ).resolves.toBeNull()
+  })
+
   it('returns a bounded change-only universal price history', async () => {
     await expect(
-      listProductPriceHistory(database.binding, {
+      listProductObservedPriceChanges(database.binding, {
         productId: '018f47a0-0000-7000-8000-000000000004',
         limit: 10,
       }),

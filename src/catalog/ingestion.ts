@@ -60,6 +60,7 @@ const findObservation = (
   input: Pick<
     z.output<typeof sourceObservationSchema>,
     | 'retailerSourceId'
+    | 'retailerRunId'
     | 'sourceListingKey'
     | 'sourceOfferKey'
     | 'responseIntegrityHash'
@@ -71,6 +72,7 @@ const findObservation = (
       `SELECT id, offer_id AS offerId
        FROM source_observations
        WHERE retailer_source_id = ?
+         AND retailer_run_id = ?
          AND source_listing_key = ?
          AND source_offer_key = ?
          AND response_integrity_hash = ?
@@ -78,6 +80,7 @@ const findObservation = (
     )
     .bind(
       input.retailerSourceId,
+      input.retailerRunId,
       input.sourceListingKey,
       input.sourceOfferKey,
       input.responseIntegrityHash,
@@ -222,13 +225,25 @@ export async function ingestValidatedOfferObservation(
   })
   const existingOffer = await database
     .prepare(
-      `SELECT id FROM offers
+      `SELECT id, confirmed_at AS confirmedAt FROM offers
        WHERE listing_id = ? AND source_offer_key = ?`,
     )
     .bind(input.listingId, input.sourceOfferKey)
-    .first<{ id: string }>()
+    .first<{ id: string; confirmedAt: number }>()
   if (existingOffer && existingOffer.id !== input.offerId) {
     throw new Error('OFFER_IDENTITY_CONFLICT')
+  }
+  if (existingOffer && existingOffer.confirmedAt >= input.observedAt) {
+    await prepareSourceObservationInsert(database, input, {
+      listingId: input.listingId,
+      offerId: input.offerId,
+      normalizedFacts: {
+        ...input.normalizedFacts,
+        productId: listing.productId,
+        outboundDestination: input.outboundDestination,
+      },
+    }).run()
+    return { status: 'historical' as const, offerId: input.offerId }
   }
 
   const writeOffer = existingOffer
@@ -240,7 +255,7 @@ export async function ingestValidatedOfferObservation(
              unit_price_denominator = ?, eligibility = ?, condition_text = ?,
              confirmed_at = ?, declared_expires_at = ?, availability = ?,
              updated_at = ?
-           WHERE id = ?`,
+           WHERE id = ? AND confirmed_at < ?`,
         )
         .bind(
           input.payableAmountMinor,
@@ -255,6 +270,7 @@ export async function ingestValidatedOfferObservation(
           input.availability,
           input.observedAt,
           input.offerId,
+          input.observedAt,
         )
     : database
         .prepare(
@@ -294,15 +310,15 @@ export async function ingestValidatedOfferObservation(
   const linkOffer = database
     .prepare(
       `UPDATE offers SET latest_observation_id = ?
-       WHERE id = ?`,
+       WHERE id = ? AND confirmed_at = ?`,
     )
-    .bind(input.id, input.offerId)
+    .bind(input.id, input.offerId, input.observedAt)
   const confirmListing = database
     .prepare(
       `UPDATE listings
        SET latest_observation_id = ?, confirmed_at = ?, availability = ?,
          outbound_destination = ?, updated_at = ?
-       WHERE id = ?`,
+       WHERE id = ? AND (confirmed_at IS NULL OR confirmed_at < ?)`,
     )
     .bind(
       input.id,
@@ -311,6 +327,7 @@ export async function ingestValidatedOfferObservation(
       input.outboundDestination,
       input.observedAt,
       input.listingId,
+      input.observedAt,
     )
 
   await database.batch([

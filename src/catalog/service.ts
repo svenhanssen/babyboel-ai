@@ -14,11 +14,72 @@ import {
   sourceObservations,
 } from '../db/schema'
 import {
-  buildObservedPriceHistory,
+  buildObservedPriceChanges,
   deriveMatchingCandidates,
   rankCurrentOffers,
   type MatchFacts,
 } from './domain'
+
+const gtinAliasInputSchema = z.object({
+  gtin: z.string().regex(/^(?:\d{8}|\d{12,14})$/),
+})
+
+export async function findActivePackageByGtinAlias(
+  database: Env['DB'],
+  untrustedInput: z.input<typeof gtinAliasInputSchema>,
+) {
+  const input = gtinAliasInputSchema.parse(untrustedInput)
+  const db = drizzle(database)
+  const [result] = await db
+    .select({
+      packageId: sql<string>`${packages.id}`.as('package_id'),
+      productId: sql<string>`${products.id}`.as('product_id'),
+    })
+    .from(packages)
+    .innerJoin(products, eq(packages.productId, products.id))
+    .where(
+      and(
+        eq(packages.gtin, input.gtin),
+        eq(packages.lifecycle, 'active'),
+        eq(products.lifecycle, 'active'),
+      ),
+    )
+    .limit(1)
+  return result ?? null
+}
+
+const retailerAliasInputSchema = z.object({
+  retailerId: uuidV7Schema,
+  retailerSku: z.string().min(1).max(500),
+})
+
+export async function findActivePackageByRetailerAlias(
+  database: Env['DB'],
+  untrustedInput: z.input<typeof retailerAliasInputSchema>,
+) {
+  const input = retailerAliasInputSchema.parse(untrustedInput)
+  const db = drizzle(database)
+  const [result] = await db
+    .select({
+      listingId: sql<string>`${listings.id}`.as('listing_id'),
+      packageId: sql<string>`${packages.id}`.as('package_id'),
+      productId: sql<string>`${products.id}`.as('product_id'),
+    })
+    .from(listings)
+    .innerJoin(packages, eq(listings.packageId, packages.id))
+    .innerJoin(products, eq(packages.productId, products.id))
+    .where(
+      and(
+        eq(listings.retailerId, input.retailerId),
+        eq(listings.retailerSku, input.retailerSku),
+        eq(listings.matchStatus, 'matched'),
+        eq(packages.lifecycle, 'active'),
+        eq(products.lifecycle, 'active'),
+      ),
+    )
+    .limit(1)
+  return result ?? null
+}
 
 const currentProductOffersInputSchema = z.object({
   productId: uuidV7Schema,
@@ -143,7 +204,7 @@ const observedOfferFactsSchema = z.object({
   availability: z.enum(['available', 'unavailable', 'unknown']),
 })
 
-export async function listProductPriceHistory(
+export async function listProductObservedPriceChanges(
   database: Env['DB'],
   untrustedInput: z.input<typeof priceHistoryInputSchema>,
 ) {
@@ -191,7 +252,7 @@ export async function listProductPriceHistory(
         : []
     },
   )
-  return buildObservedPriceHistory(facts).slice(-input.limit)
+  return buildObservedPriceChanges(facts).slice(-input.limit)
 }
 
 const productAlternativesInputSchema = z.object({

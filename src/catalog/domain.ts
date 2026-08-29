@@ -246,7 +246,7 @@ export type ObservedPriceFact = {
   availability: 'available' | 'unavailable' | 'unknown'
 }
 
-export function buildObservedPriceHistory(observations: ObservedPriceFact[]) {
+export function buildObservedPriceChanges(observations: ObservedPriceFact[]) {
   type CurrentPriceWinner = Pick<
     ObservedPriceFact,
     'offerKey' | 'payableAmountMinor' | 'totalUnits' | 'requiredPackageCount'
