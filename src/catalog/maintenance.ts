@@ -301,8 +301,11 @@ export async function reassignListing(
   }
   const target = await database
     .prepare(
-      `SELECT unit_count AS unitCount FROM packages
-       WHERE id = ? AND lifecycle = 'active'`,
+      `SELECT packages.unit_count AS unitCount
+       FROM packages
+       JOIN products ON products.id = packages.product_id
+       WHERE packages.id = ? AND packages.lifecycle = 'active'
+         AND products.lifecycle = 'active'`,
     )
     .bind(input.packageId)
     .first<{ unitCount: number }>()
@@ -610,6 +613,12 @@ export async function mergeProducts(
   if (input.survivorProductId === input.duplicateProductId) {
     throw new Error('PRODUCT_MERGE_SELF')
   }
+  if (
+    input.changedAt <=
+    Math.max(input.expectedSurvivorUpdatedAt, input.expectedDuplicateUpdatedAt)
+  ) {
+    throw new Error('MUTATION_VERSION_INVALID')
+  }
   const [survivor, duplicate, count] = await Promise.all([
     database
       .prepare(
@@ -653,6 +662,9 @@ export async function mergeProducts(
       .first<{ count: number }>(),
   ])
   if (!survivor || !duplicate) throw new Error('PRODUCT_NOT_FOUND')
+  if (duplicate.mergedIntoProductId !== null) {
+    throw new Error('PRODUCT_ALREADY_MERGED')
+  }
   if (
     survivor.brandId !== duplicate.brandId ||
     survivor.categoryCode !== duplicate.categoryCode ||

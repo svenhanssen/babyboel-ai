@@ -98,7 +98,10 @@ describe('catalog service D1 boundary', () => {
         'disposable_diaper', 'Alternative', 'Regular', '4+',
         'fixture-brand|disposable_diaper|alternative|regular|4+',
         'fixture-brand-alternative-4-plus', 'active', ${now}, ${now}
-      )
+      );
+      UPDATE review_cases
+      SET status = 'closed', blocks_publication = 0, closed_at = ${now},
+        closure_outcome = 'Fixture approved'
     `)
   }, 30_000)
 
@@ -123,6 +126,27 @@ describe('catalog service D1 boundary', () => {
     expect(JSON.stringify(result)).not.toMatch(
       /rawFacts|normalizedFacts|sanitizedExcerpt|evidenceArtifact|sourceUrl/,
     )
+  })
+
+  it('suppresses Offers blocked by an open Review case', async () => {
+    database.execute(`
+      UPDATE review_cases
+      SET status = 'open', blocks_publication = 1, closed_at = NULL,
+        closure_outcome = NULL
+      WHERE id = '018f47a0-0000-7000-8000-00000000000b'
+    `)
+    const blocked = await listCurrentProductOffers(database.binding, {
+      productId: '018f47a0-0000-7000-8000-000000000004',
+      now,
+    })
+    expect(blocked.primary).toEqual([])
+    expect(blocked.restricted).toEqual([])
+    database.execute(`
+      UPDATE review_cases
+      SET status = 'closed', blocks_publication = 0, closed_at = ${now},
+        closure_outcome = 'Fixture approved'
+      WHERE id = '018f47a0-0000-7000-8000-00000000000b'
+    `)
   })
 
   it('derives Review candidates from active exact catalog facts', async () => {

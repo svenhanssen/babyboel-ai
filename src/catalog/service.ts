@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  isNull,
+  ne,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { z } from 'zod'
 
@@ -10,6 +22,7 @@ import {
   offers,
   packages,
   products,
+  reviewCases,
   retailers,
   sourceObservations,
 } from '../db/schema'
@@ -135,6 +148,18 @@ export async function listCurrentProductOffers(
         or(
           isNull(offers.declaredExpiresAt),
           gt(offers.declaredExpiresAt, input.now),
+        ),
+        notExists(
+          db
+            .select({ id: reviewCases.id })
+            .from(reviewCases)
+            .where(
+              and(
+                eq(reviewCases.listingId, listings.id),
+                eq(reviewCases.status, 'open'),
+                eq(reviewCases.blocksPublication, true),
+              ),
+            ),
         ),
       ),
     )

@@ -241,6 +241,16 @@ export async function ingestValidatedOfferObservation(
     packageUnitCount: listing.packageUnitCount,
     requiredPackageCount: input.requiredPackageCount,
   })
+  const normalizedOfferFacts = {
+    ...input.normalizedFacts,
+    productId: listing.productId,
+    outboundDestination: input.outboundDestination,
+    payableAmountMinor: input.payableAmountMinor,
+    totalUnits: price.totalUnits,
+    requiredPackageCount: price.requiredPackageCount,
+    eligibility: input.eligibility,
+    availability: input.availability,
+  }
   const existingOffer = await database
     .prepare(
       `SELECT id, confirmed_at AS confirmedAt FROM offers
@@ -255,16 +265,7 @@ export async function ingestValidatedOfferObservation(
     await prepareSourceObservationInsert(database, input, {
       listingId: input.listingId,
       offerId: input.offerId,
-      normalizedFacts: {
-        ...input.normalizedFacts,
-        productId: listing.productId,
-        outboundDestination: input.outboundDestination,
-        payableAmountMinor: input.payableAmountMinor,
-        totalUnits: price.totalUnits,
-        requiredPackageCount: price.requiredPackageCount,
-        eligibility: input.eligibility,
-        availability: input.availability,
-      },
+      normalizedFacts: normalizedOfferFacts,
     }).run()
     return { status: 'historical' as const, offerId: input.offerId }
   }
@@ -324,16 +325,7 @@ export async function ingestValidatedOfferObservation(
   const insertObservation = prepareSourceObservationInsert(database, input, {
     listingId: input.listingId,
     offerId: input.offerId,
-    normalizedFacts: {
-      ...input.normalizedFacts,
-      productId: listing.productId,
-      outboundDestination: input.outboundDestination,
-      payableAmountMinor: input.payableAmountMinor,
-      totalUnits: price.totalUnits,
-      requiredPackageCount: price.requiredPackageCount,
-      eligibility: input.eligibility,
-      availability: input.availability,
-    },
+    normalizedFacts: normalizedOfferFacts,
   })
   const linkOffer = database
     .prepare(
@@ -557,6 +549,7 @@ export async function matchObservedListing(
         source_observations.outcome,
         source_observations.issue_codes_json AS issueCodes,
         source_observations.source_listing_key AS sourceListingKey,
+        source_observations.source_offer_key AS sourceOfferKey,
         retailer_sources.retailer_id AS retailerId,
         retailer_runs.retailer_id AS runRetailerId,
         retailer_sources.acquisition_method AS acquisitionMethod,
@@ -575,6 +568,7 @@ export async function matchObservedListing(
       outcome: string
       issueCodes: string
       sourceListingKey: string
+      sourceOfferKey: string
       retailerId: string
       runRetailerId: string
       acquisitionMethod: string
@@ -584,7 +578,8 @@ export async function matchObservedListing(
     !sourceObservation ||
     sourceObservation.retailerId !== listing.retailerId ||
     sourceObservation.runRetailerId !== listing.retailerId ||
-    sourceObservation.sourceListingKey !== listing.retailerSku
+    sourceObservation.sourceListingKey !== listing.retailerSku ||
+    sourceObservation.sourceOfferKey !== 'identity'
   ) {
     throw new Error('OBSERVATION_LISTING_MISMATCH')
   }
