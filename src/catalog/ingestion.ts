@@ -172,6 +172,15 @@ export async function ingestValidatedOfferObservation(
   untrustedInput: z.input<typeof validatedOfferObservationSchema>,
 ) {
   const input = validatedOfferObservationSchema.parse(untrustedInput)
+  if (input.outcome !== 'success' || input.issueCodes.length > 0) {
+    throw new Error('OBSERVATION_REQUIRES_REVIEW')
+  }
+  if (input.sourceOfferKey === 'identity') {
+    throw new Error('OFFER_OBSERVATION_LANE_REQUIRED')
+  }
+  if (input.outboundDestination !== input.sourceUrl) {
+    throw new Error('OUTBOUND_EVIDENCE_MISMATCH')
+  }
   if (
     (input.eligibility === 'restricted' && input.conditionText === null) ||
     (input.declaredExpiresAt !== null &&
@@ -279,6 +288,7 @@ export async function ingestValidatedOfferObservation(
     normalizedFacts: {
       ...input.normalizedFacts,
       productId: listing.productId,
+      outboundDestination: input.outboundDestination,
     },
   })
   const linkOffer = database

@@ -85,6 +85,7 @@ describe('catalog ingestion D1 boundary', () => {
         observedAt: offerObservedAt,
         retrievedAt: offerObservedAt,
         responseIntegrityHash: 'sha256:offer-update',
+        issueCodes: [],
         normalizedFacts: {
           payableAmountMinor: 1_799,
           totalUnits: 160,
@@ -126,6 +127,53 @@ describe('catalog ingestion D1 boundary', () => {
       },
     ])
   }, 20_000)
+
+  it('requires clean retained Offer evidence on a non-identity lane', async () => {
+    const validInput = {
+      ...observation,
+      id: '018f47a0-0000-7000-8000-000000000037',
+      sourceOfferKey: 'single',
+      observedAt: offerObservedAt + 1,
+      retrievedAt: offerObservedAt + 1,
+      outcome: 'success' as const,
+      issueCodes: [],
+      responseIntegrityHash: 'sha256:validation-only',
+      listingId: '018f47a0-0000-7000-8000-000000000006',
+      offerId: '018f47a0-0000-7000-8000-000000000007',
+      payableAmountMinor: 1_799,
+      requiredPackageCount: 2,
+      eligibility: 'universal' as const,
+      conditionText: '2 verpakkingen',
+      availability: 'available' as const,
+      declaredExpiresAt: null,
+      outboundDestination: 'https://retailer.example/fixture-brand-4-plus',
+    }
+
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...validInput,
+        outcome: 'invalid',
+      }),
+    ).rejects.toThrow('OBSERVATION_REQUIRES_REVIEW')
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...validInput,
+        issueCodes: ['price_conflict'],
+      }),
+    ).rejects.toThrow('OBSERVATION_REQUIRES_REVIEW')
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...validInput,
+        sourceOfferKey: 'identity',
+      }),
+    ).rejects.toThrow('OFFER_OBSERVATION_LANE_REQUIRED')
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...validInput,
+        outboundDestination: 'https://retailer.example/unrelated',
+      }),
+    ).rejects.toThrow('OUTBOUND_EVIDENCE_MISMATCH')
+  })
 
   it('retains contradictory price evidence and quarantines the Offer into Review', async () => {
     await expect(
