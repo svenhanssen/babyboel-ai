@@ -6,6 +6,7 @@ import {
   type CategoryCode,
   type NormalizedSizeCode,
 } from '../db/domain'
+import { uuidV7Schema } from '../db/validation'
 import { buildProductIdentityKey, calculateOfferPrice } from './domain'
 import {
   createAuditSummary,
@@ -16,11 +17,6 @@ import {
   type AdminContext,
 } from '../security/admin-boundary'
 
-const uuidV7Schema = z
-  .string()
-  .regex(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  )
 const timestampSchema = z.number().int().nonnegative()
 const evidenceReferenceSchema = z.union([
   z.object({ observationId: uuidV7Schema }),
@@ -311,18 +307,6 @@ export async function reassignListing(
     .bind(input.packageId)
     .first<{ unitCount: number }>()
   if (!target) throw new Error('PACKAGE_NOT_FOUND')
-  const incompatible = await database
-    .prepare(
-      `SELECT COUNT(*) AS count FROM offers
-       WHERE listing_id = ?
-         AND total_units <> required_package_count * ?`,
-    )
-    .bind(input.listingId, target.unitCount)
-    .first<{ count: number }>()
-  if ((incompatible?.count ?? 0) > 0) {
-    throw new Error('PACKAGE_QUANTITY_CONFLICT')
-  }
-
   const update = database
     .prepare(
       `UPDATE listings
@@ -339,6 +323,15 @@ export async function reassignListing(
       input.listingId,
       input.expectedUpdatedAt,
     )
+  const updateOfferQuantities = database
+    .prepare(
+      `UPDATE offers
+       SET total_units = required_package_count * ?,
+         unit_price_denominator = required_package_count * ?,
+         updated_at = ?
+       WHERE listing_id = ?`,
+    )
+    .bind(target.unitCount, target.unitCount, input.changedAt, input.listingId)
   const audit = auditStatement(database, {
     metadata,
     actor: untrustedInput.actor,
@@ -362,7 +355,7 @@ export async function reassignListing(
     guardTable: 'listings',
     guardVersion: input.changedAt,
   })
-  const results = await database.batch([update, audit])
+  const results = await database.batch([update, updateOfferQuantities, audit])
   if (!changedOneRow(results[0])) {
     return {
       status: 'conflict' as const,
@@ -550,19 +543,32 @@ export async function mergeProducts(
   const [survivor, duplicate, count] = await Promise.all([
     database
       .prepare(
-        `SELECT lifecycle, updated_at AS updatedAt
+        `SELECT brand_id AS brandId, category_code AS categoryCode,
+          normalized_size_code AS normalizedSizeCode, lifecycle,
+          updated_at AS updatedAt
          FROM products WHERE id = ?`,
       )
       .bind(input.survivorProductId)
-      .first<{ lifecycle: string; updatedAt: number }>(),
+      .first<{
+        brandId: string
+        categoryCode: CategoryCode
+        normalizedSizeCode: NormalizedSizeCode | null
+        lifecycle: string
+        updatedAt: number
+      }>(),
     database
       .prepare(
-        `SELECT lifecycle, merged_into_product_id AS mergedIntoProductId,
+        `SELECT brand_id AS brandId, category_code AS categoryCode,
+          normalized_size_code AS normalizedSizeCode, lifecycle,
+          merged_into_product_id AS mergedIntoProductId,
           updated_at AS updatedAt
          FROM products WHERE id = ?`,
       )
       .bind(input.duplicateProductId)
       .first<{
+        brandId: string
+        categoryCode: CategoryCode
+        normalizedSizeCode: NormalizedSizeCode | null
         lifecycle: string
         mergedIntoProductId: string | null
         updatedAt: number
@@ -573,6 +579,13 @@ export async function mergeProducts(
       .first<{ count: number }>(),
   ])
   if (!survivor || !duplicate) throw new Error('PRODUCT_NOT_FOUND')
+  if (
+    survivor.brandId !== duplicate.brandId ||
+    survivor.categoryCode !== duplicate.categoryCode ||
+    survivor.normalizedSizeCode !== duplicate.normalizedSizeCode
+  ) {
+    throw new Error('PRODUCT_MERGE_IDENTITY_CONFLICT')
+  }
   if (
     survivor.lifecycle !== 'active' ||
     survivor.updatedAt !== input.expectedSurvivorUpdatedAt ||

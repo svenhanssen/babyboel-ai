@@ -2,13 +2,17 @@ import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import {
-  applyListingMatchDecision,
+  ingestValidatedOfferObservation,
+  matchObservedListing,
+  quarantineOfferObservation,
   recordSourceObservation,
 } from '../src/catalog/ingestion'
 import { createD1TestDatabase, type D1TestDatabase } from './d1'
 
 const fixturePath = resolve('tests/fixtures/catalog.sql')
 const now = 1_787_990_500_000
+const offerObservedAt = now + 10
+const matchDecidedAt = now + 20
 const observation = {
   id: '018f47a0-0000-7000-8000-000000000030',
   retailerSourceId: '018f47a0-0000-7000-8000-000000000002',
@@ -29,6 +33,17 @@ const observation = {
   sanitizedContentHash: 'sha256:changed-sanitized',
   observationFormat: 1,
   adapterIdentifier: 'fixture-adapter@1',
+}
+const contradictoryFacts = {
+  brand: 'Fixture Brand',
+  categoryCode: 'diaper_pants' as const,
+  normalizedSizeCode: '4+' as const,
+  line: 'Original',
+  variant: 'Regular',
+  gtin: '08712345678903',
+  unitCount: 80,
+  innerPackCount: 2,
+  unitsPerInnerPack: 40,
 }
 
 describe('catalog ingestion D1 boundary', () => {
@@ -63,23 +78,107 @@ describe('catalog ingestion D1 boundary', () => {
     expect(count).toBe(1)
   }, 20_000)
 
+  it('turns a validated Offer observation into linked current state', async () => {
+    await expect(
+      ingestValidatedOfferObservation(database.binding, {
+        ...observation,
+        id: '018f47a0-0000-7000-8000-000000000034',
+        sourceOfferKey: 'single',
+        observedAt: offerObservedAt,
+        retrievedAt: offerObservedAt,
+        responseIntegrityHash: 'sha256:offer-update',
+        normalizedFacts: {
+          payableAmountMinor: 1_799,
+          totalUnits: 160,
+          requiredPackageCount: 2,
+          eligibility: 'universal',
+          availability: 'available',
+        },
+        listingId: '018f47a0-0000-7000-8000-000000000006',
+        offerId: '018f47a0-0000-7000-8000-000000000007',
+        payableAmountMinor: 1_799,
+        requiredPackageCount: 2,
+        eligibility: 'universal',
+        conditionText: '2 verpakkingen',
+        availability: 'available',
+        declaredExpiresAt: null,
+      }),
+    ).resolves.toEqual({
+      status: 'updated',
+      offerId: '018f47a0-0000-7000-8000-000000000007',
+    })
+
+    expect(
+      database.execute<{
+        amount: number
+        totalUnits: number
+        observationId: string
+      }>(`
+        SELECT payable_amount_minor AS amount, total_units AS totalUnits,
+          latest_observation_id AS observationId
+        FROM offers
+        WHERE id = '018f47a0-0000-7000-8000-000000000007'
+      `),
+    ).toEqual([
+      {
+        amount: 1799,
+        totalUnits: 160,
+        observationId: '018f47a0-0000-7000-8000-000000000034',
+      },
+    ])
+  }, 20_000)
+
+  it('retains contradictory price evidence and quarantines the Offer into Review', async () => {
+    await expect(
+      quarantineOfferObservation(database.binding, {
+        ...observation,
+        id: '018f47a0-0000-7000-8000-000000000035',
+        sourceOfferKey: 'single',
+        observedAt: offerObservedAt + 1,
+        retrievedAt: offerObservedAt + 1,
+        normalizedFacts: {},
+        outcome: 'invalid',
+        responseIntegrityHash: 'sha256:price-conflict',
+        issueCodes: ['price_conflict'],
+        affectedFields: ['price'],
+        listingId: '018f47a0-0000-7000-8000-000000000006',
+        offerId: '018f47a0-0000-7000-8000-000000000007',
+        reviewCaseId: '018f47a0-0000-7000-8000-000000000036',
+        uncertaintyType: 'price_conflict',
+      }),
+    ).resolves.toEqual({
+      status: 'review',
+      observationId: '018f47a0-0000-7000-8000-000000000035',
+    })
+
+    expect(
+      database.execute<{ availability: string; reviews: number }>(`
+        SELECT offers.availability,
+          (
+            SELECT COUNT(*) FROM review_cases
+            WHERE listing_id = listings.id
+              AND uncertainty_type = 'price_conflict'
+              AND status = 'open'
+          ) AS reviews
+        FROM offers
+        JOIN listings ON listings.id = offers.listing_id
+        WHERE offers.id = '018f47a0-0000-7000-8000-000000000007'
+      `),
+    ).toEqual([{ availability: 'unknown', reviews: 1 }])
+  }, 20_000)
+
   it('suppresses a contradictory Listing and opens one logical Review case', async () => {
-    const result = await applyListingMatchDecision(database.binding, {
+    const result = await matchObservedListing(database.binding, {
       listingId: '018f47a0-0000-7000-8000-000000000006',
       observationId: observation.id,
       reviewCaseId: '018f47a0-0000-7000-8000-000000000032',
-      expectedUpdatedAt: 1_787_990_400_000,
-      decidedAt: now,
-      fingerprint: 'fingerprint:changed',
-      decision: {
-        kind: 'review',
-        uncertaintyType: 'contradiction',
-        reasons: ['categoryCode'],
-      },
+      expectedUpdatedAt: offerObservedAt,
+      decidedAt: matchDecidedAt,
+      observed: contradictoryFacts,
       blockAutomaticReuse: true,
     })
 
-    expect(result).toEqual({ status: 'review', version: now })
+    expect(result).toEqual({ status: 'review', version: matchDecidedAt })
     expect(
       database.execute<{
         matchStatus: string
@@ -121,21 +220,16 @@ describe('catalog ingestion D1 boundary', () => {
 
   it('does not repeat state changes for the same supporting Observation', async () => {
     await expect(
-      applyListingMatchDecision(database.binding, {
+      matchObservedListing(database.binding, {
         listingId: '018f47a0-0000-7000-8000-000000000006',
         observationId: observation.id,
         reviewCaseId: '018f47a0-0000-7000-8000-000000000033',
-        expectedUpdatedAt: now,
-        decidedAt: now + 1,
-        fingerprint: 'fingerprint:changed',
-        decision: {
-          kind: 'review',
-          uncertaintyType: 'contradiction',
-          reasons: ['categoryCode'],
-        },
+        expectedUpdatedAt: matchDecidedAt,
+        decidedAt: matchDecidedAt + 1,
+        observed: contradictoryFacts,
         blockAutomaticReuse: true,
       }),
-    ).resolves.toEqual({ status: 'unchanged', version: now })
+    ).resolves.toEqual({ status: 'unchanged', version: matchDecidedAt })
 
     const [{ occurrenceCount }] = database.execute<{
       occurrenceCount: number

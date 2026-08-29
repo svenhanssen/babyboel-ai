@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildProductIdentityKey,
+  buildObservedPriceHistory,
   calculateOfferPrice,
+  createSourceNormalizer,
   decideListingMatch,
   deriveMatchingCandidates,
   parseNormalizedSize,
@@ -31,6 +33,7 @@ const offer = (overrides: Partial<RankedOffer> = {}): RankedOffer => ({
   listingId: 'listing-a',
   retailerId: 'retailer-a',
   retailerName: 'Albert',
+  listingConfirmedAt: now,
   payableAmountMinor: 1_999,
   requiredPackageCount: 1,
   totalUnits: 80,
@@ -75,10 +78,30 @@ describe('catalog domain', () => {
     )
   })
 
+  it('uses only explicit adapter-local category and size aliases', () => {
+    const normalize = createSourceNormalizer({
+      categoryAliases: {
+        Luiers: 'disposable_diaper',
+      },
+      sizeAliases: {
+        'Maat Vier Plus': '4+',
+      },
+    })
+
+    expect(normalize.category('Luiers')).toBe('disposable_diaper')
+    expect(normalize.size('Maat Vier Plus')).toBe('4+')
+    expect(normalize.size('maat 4+')).toBe('4+')
+    expect(normalize.size('Junior')).toBeNull()
+  })
+
   it.each([
     {
       name: 'one Package',
-      input: { payableAmountMinor: 1_999, packageUnitCount: 80 },
+      input: {
+        payableAmountMinor: 1_999,
+        packageUnitCount: 80,
+        requiredPackageCount: 1,
+      },
       expected: {
         requiredPackageCount: 1,
         totalUnits: 80,
@@ -105,8 +128,16 @@ describe('catalog domain', () => {
   })
 
   it.each([
-    { payableAmountMinor: 0, packageUnitCount: 80 },
-    { payableAmountMinor: 1_999, packageUnitCount: 0 },
+    {
+      payableAmountMinor: 0,
+      packageUnitCount: 80,
+      requiredPackageCount: 1,
+    },
+    {
+      payableAmountMinor: 1_999,
+      packageUnitCount: 0,
+      requiredPackageCount: 1,
+    },
     {
       payableAmountMinor: 1_999,
       packageUnitCount: Number.MAX_SAFE_INTEGER,
@@ -177,6 +208,97 @@ describe('catalog domain', () => {
     )
 
     expect(ranked.primary.map(({ offerId }) => offerId)).toEqual(['boundary'])
+  })
+
+  it('does not publish an Offer whose outbound destination is stale', () => {
+    const ranked = rankCurrentOffers(
+      [
+        offer({
+          offerId: 'stale-destination',
+          listingConfirmedAt: now - 48 * 60 * 60 * 1_000 - 1,
+        }),
+      ],
+      now,
+    )
+
+    expect(ranked.primary).toEqual([])
+  })
+
+  it('keeps only changed universal price points and marks evidence gaps', () => {
+    const history = buildObservedPriceHistory([
+      {
+        observedAt: now - 100_000,
+        payableAmountMinor: 1_999,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        availability: 'available',
+      },
+      {
+        observedAt: now - 50_000,
+        payableAmountMinor: 1_999,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        availability: 'available',
+      },
+      {
+        observedAt: now - 25_000,
+        payableAmountMinor: 999,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'restricted',
+        availability: 'available',
+      },
+      {
+        observedAt: now - 10_000,
+        payableAmountMinor: 1_799,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        availability: 'available',
+      },
+      {
+        observedAt: now - 5_000,
+        payableAmountMinor: 1_799,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        availability: 'unavailable',
+      },
+      {
+        observedAt: now,
+        payableAmountMinor: 1_699,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        availability: 'available',
+      },
+    ])
+
+    expect(history).toEqual([
+      {
+        observedAt: now - 100_000,
+        payableAmountMinor: 1_999,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        continuity: 'start',
+      },
+      {
+        observedAt: now - 10_000,
+        payableAmountMinor: 1_799,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        continuity: 'continuous',
+      },
+      {
+        observedAt: now,
+        payableAmountMinor: 1_699,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        continuity: 'start',
+      },
+    ])
   })
 
   it('reuses an approved Listing only for an unchanged clean fingerprint', () => {

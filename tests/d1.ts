@@ -7,6 +7,7 @@ type D1Result<Row> = {
   results: Row[]
   success: boolean
 }
+const boundSql = Symbol('boundSql')
 
 const quoteSqlValue = (value: unknown) => {
   if (value === null) return 'NULL'
@@ -53,7 +54,7 @@ export const createD1TestDatabase = async () => {
     )
   }
 
-  const execute = <Row = Record<string, unknown>>(sql: string) => {
+  const executeDetailed = <Row = Record<string, unknown>>(sql: string) => {
     const result = runWrangler([
       'execute',
       'DB',
@@ -68,8 +69,10 @@ export const createD1TestDatabase = async () => {
     }
 
     const output = JSON.parse(result.stdout) as D1Result<Row>[]
-    return output.flatMap((entry) => entry.results)
+    return output
   }
+  const execute = <Row = Record<string, unknown>>(sql: string) =>
+    executeDetailed<Row>(sql).flatMap((entry) => entry.results)
 
   const executeFile = (path: string) => {
     const result = runWrangler([
@@ -92,6 +95,7 @@ export const createD1TestDatabase = async () => {
         return execute(bound)
       }
       return {
+        [boundSql]: () => bindSql(sql, values),
         bind: (...nextValues: unknown[]) => statement(nextValues),
         all: () =>
           Promise.resolve({
@@ -122,13 +126,20 @@ export const createD1TestDatabase = async () => {
     executeFile,
     binding: {
       prepare,
-      batch: async (statements: ReturnType<Env['DB']['prepare']>[]) => {
-        const results = []
-        for (const statement of statements) {
-          results.push(await statement.run())
-        }
-        return results
-      },
+      batch: (statements: ReturnType<Env['DB']['prepare']>[]) =>
+        Promise.resolve(
+          executeDetailed(
+            statements
+              .map((statement) =>
+                (
+                  statement as unknown as {
+                    [boundSql]: () => string
+                  }
+                )[boundSql](),
+              )
+              .join(';\n'),
+          ),
+        ),
       exec: (sql: string) => {
         execute(sql)
         return Promise.resolve({ count: 0, duration: 0 })

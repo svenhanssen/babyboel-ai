@@ -116,6 +116,37 @@ describe('catalog maintenance D1 boundary', () => {
       }),
     ).resolves.toEqual({ status: 'conflict', version: changedAt })
 
+    await expect(
+      correctOffer(database.binding, {
+        offerId: '018f47a0-0000-7000-8000-000000000007',
+        expectedUpdatedAt: changedAt,
+        changedAt: changedAt + 2,
+        payableAmountMinor: 1_499,
+        requiredPackageCount: 1,
+        eligibility: 'universal',
+        conditionText: null,
+        availability: 'available',
+        confirmedAt: changedAt + 2,
+        declaredExpiresAt: null,
+        actor,
+        auditId: '018f47a0-0000-7000-8000-000000000040',
+        reason: 'A failed audit must roll back the state correction',
+        evidenceReference: {
+          observationId: '018f47a0-0000-7000-8000-00000000000a',
+        },
+      }),
+    ).rejects.toThrow(/UNIQUE constraint failed/)
+
+    const [rolledBack] = database.execute<{
+      amount: number
+      version: number
+    }>(`
+      SELECT payable_amount_minor AS amount, updated_at AS version
+      FROM offers
+      WHERE id = '018f47a0-0000-7000-8000-000000000007'
+    `)
+    expect(rolledBack).toEqual({ amount: 1599, version: changedAt })
+
     const [{ count }] = database.execute<{ count: number }>(`
       SELECT COUNT(*) AS count
       FROM audit_log
@@ -143,7 +174,7 @@ describe('catalog maintenance D1 boundary', () => {
       ) VALUES (
         '018f47a0-0000-7000-8000-000000000043',
         '018f47a0-0000-7000-8000-000000000042',
-        80, 2, 40, '08712345678910', 'active', ${fixtureNow}, ${fixtureNow}
+        40, 2, 20, '08712345678910', 'active', ${fixtureNow}, ${fixtureNow}
       )
     `)
 
@@ -161,6 +192,15 @@ describe('catalog maintenance D1 boundary', () => {
         },
       }),
     ).resolves.toEqual({ status: 'updated', version: changedAt })
+
+    expect(
+      database.execute<{ totalUnits: number; denominator: number }>(`
+        SELECT total_units AS totalUnits,
+          unit_price_denominator AS denominator
+        FROM offers
+        WHERE id = '018f47a0-0000-7000-8000-000000000007'
+      `),
+    ).toEqual([{ totalUnits: 40, denominator: 40 }])
 
     await expect(
       mergeProducts(database.binding, {

@@ -1,8 +1,9 @@
-import { and, eq, gt, gte, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { z } from 'zod'
 
 import { currentOfferFreshnessMilliseconds } from '../db/domain'
+import { uuidV7Schema } from '../db/validation'
 import {
   brands,
   listings,
@@ -10,18 +11,14 @@ import {
   packages,
   products,
   retailers,
+  sourceObservations,
 } from '../db/schema'
 import {
+  buildObservedPriceHistory,
   deriveMatchingCandidates,
   rankCurrentOffers,
   type MatchFacts,
 } from './domain'
-
-const uuidV7Schema = z
-  .string()
-  .regex(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  )
 
 const currentProductOffersInputSchema = z.object({
   productId: uuidV7Schema,
@@ -42,6 +39,9 @@ export async function listCurrentProductOffers(
       retailerId: sql<string>`${retailers.id}`.as('retailer_id'),
       retailerName: retailers.name,
       outboundDestination: listings.outboundDestination,
+      listingConfirmedAt: sql<number>`${listings.confirmedAt}`.as(
+        'listing_confirmed_at',
+      ),
       packageUnitCount: packages.unitCount,
       payableAmountMinor: offers.payableAmountMinor,
       requiredPackageCount: offers.requiredPackageCount,
@@ -64,6 +64,10 @@ export async function listCurrentProductOffers(
         eq(packages.lifecycle, 'active'),
         eq(listings.matchStatus, 'matched'),
         eq(listings.availability, 'available'),
+        gte(
+          listings.confirmedAt,
+          input.now - currentOfferFreshnessMilliseconds,
+        ),
         eq(offers.availability, 'available'),
         gte(offers.confirmedAt, input.now - currentOfferFreshnessMilliseconds),
         or(
@@ -125,4 +129,100 @@ export async function findListingMatchCandidates(
       active: true,
     })),
   )
+}
+
+const priceHistoryInputSchema = z.object({
+  productId: uuidV7Schema,
+  limit: z.number().int().min(1).max(100).default(50),
+})
+const observedOfferFactsSchema = z.object({
+  payableAmountMinor: z.number().int().positive(),
+  totalUnits: z.number().int().positive(),
+  requiredPackageCount: z.number().int().positive(),
+  eligibility: z.enum(['universal', 'restricted']),
+  availability: z.enum(['available', 'unavailable', 'unknown']),
+})
+
+export async function listProductPriceHistory(
+  database: Env['DB'],
+  untrustedInput: z.input<typeof priceHistoryInputSchema>,
+) {
+  const input = priceHistoryInputSchema.parse(untrustedInput)
+  const db = drizzle(database)
+  const rows = await db
+    .select({
+      observedAt: sourceObservations.observedAt,
+      normalizedFacts: sourceObservations.normalizedFactsJson,
+    })
+    .from(sourceObservations)
+    .innerJoin(offers, eq(sourceObservations.offerId, offers.id))
+    .innerJoin(listings, eq(offers.listingId, listings.id))
+    .innerJoin(packages, eq(listings.packageId, packages.id))
+    .where(
+      and(
+        eq(packages.productId, input.productId),
+        eq(sourceObservations.outcome, 'success'),
+      ),
+    )
+    .orderBy(asc(sourceObservations.observedAt))
+    .limit(input.limit * 4)
+
+  const facts = rows.flatMap(({ observedAt, normalizedFacts }) => {
+    const parsed = observedOfferFactsSchema.safeParse(normalizedFacts)
+    return parsed.success ? [{ observedAt, ...parsed.data }] : []
+  })
+  return buildObservedPriceHistory(facts).slice(-input.limit)
+}
+
+const productAlternativesInputSchema = z.object({
+  productId: uuidV7Schema,
+})
+
+export async function listProductAlternatives(
+  database: Env['DB'],
+  untrustedInput: z.input<typeof productAlternativesInputSchema>,
+) {
+  const input = productAlternativesInputSchema.parse(untrustedInput)
+  const db = drizzle(database)
+  const [product] = await db
+    .select({
+      categoryCode: products.categoryCode,
+      normalizedSizeCode: products.normalizedSizeCode,
+    })
+    .from(products)
+    .where(eq(products.id, input.productId))
+    .limit(1)
+  if (!product) return []
+
+  const alternatives = await db
+    .select({
+      productId: sql<string>`${products.id}`.as('alternative_product_id'),
+      slug: products.slug,
+      brand: brands.name,
+      line: products.line,
+      variant: products.variant,
+      normalizedSizeCode: products.normalizedSizeCode,
+    })
+    .from(products)
+    .innerJoin(brands, eq(products.brandId, brands.id))
+    .where(
+      and(
+        ne(products.id, input.productId),
+        eq(products.lifecycle, 'active'),
+        eq(products.categoryCode, product.categoryCode),
+        product.categoryCode === 'wipes'
+          ? isNull(products.normalizedSizeCode)
+          : eq(products.normalizedSizeCode, product.normalizedSizeCode!),
+      ),
+    )
+    .orderBy(asc(brands.name), asc(products.line), asc(products.variant))
+    .limit(3)
+
+  return alternatives.map((alternative) => ({
+    ...alternative,
+    relationship:
+      product.categoryCode === 'wipes'
+        ? ('same_category' as const)
+        : ('same_category_and_size' as const),
+  }))
 }

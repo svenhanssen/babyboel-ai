@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   findListingMatchCandidates,
   listCurrentProductOffers,
+  listProductAlternatives,
+  listProductPriceHistory,
 } from '../src/catalog/service'
 import { createD1TestDatabase, type D1TestDatabase } from './d1'
 
@@ -42,6 +44,59 @@ describe('catalog service D1 boundary', () => {
           NULL, ${now - 48 * 60 * 60 * 1_000 - 1}, 'available',
           ${now}, ${now}
         )
+      ;
+      INSERT INTO source_observations (
+        id, retailer_source_id, retailer_run_id, listing_id, offer_id,
+        evidence_artifact_id, source_listing_key, source_offer_key,
+        observed_at, retrieved_at, source_url, raw_facts_json,
+        normalized_facts_json, extraction_method, sanitized_excerpt,
+        issue_codes_json, affected_fields_json, outcome,
+        response_integrity_hash, sanitized_content_hash, observation_format,
+        adapter_identifier
+      )
+      SELECT
+        '018f47a0-0000-7000-8000-000000000023', retailer_source_id,
+        retailer_run_id, listing_id,
+        '018f47a0-0000-7000-8000-000000000007', evidence_artifact_id,
+        source_listing_key, 'single', ${now - 1_000}, ${now - 1_000},
+        source_url, raw_facts_json,
+        '{"payableAmountMinor":1999,"totalUnits":80,"requiredPackageCount":1,"eligibility":"universal","availability":"available"}',
+        extraction_method, sanitized_excerpt, issue_codes_json,
+        '["price"]', outcome, 'sha256:history-1', sanitized_content_hash,
+        observation_format, adapter_identifier
+      FROM source_observations
+      WHERE id = '018f47a0-0000-7000-8000-00000000000a';
+      INSERT INTO source_observations (
+        id, retailer_source_id, retailer_run_id, listing_id, offer_id,
+        evidence_artifact_id, source_listing_key, source_offer_key,
+        observed_at, retrieved_at, source_url, raw_facts_json,
+        normalized_facts_json, extraction_method, sanitized_excerpt,
+        issue_codes_json, affected_fields_json, outcome,
+        response_integrity_hash, sanitized_content_hash, observation_format,
+        adapter_identifier
+      )
+      SELECT
+        '018f47a0-0000-7000-8000-000000000024', retailer_source_id,
+        retailer_run_id, listing_id,
+        '018f47a0-0000-7000-8000-000000000007', evidence_artifact_id,
+        source_listing_key, 'single', ${now}, ${now}, source_url,
+        raw_facts_json,
+        '{"payableAmountMinor":1799,"totalUnits":80,"requiredPackageCount":1,"eligibility":"universal","availability":"available"}',
+        extraction_method, sanitized_excerpt, issue_codes_json,
+        '["price"]', outcome, 'sha256:history-2', sanitized_content_hash,
+        observation_format, adapter_identifier
+      FROM source_observations
+      WHERE id = '018f47a0-0000-7000-8000-00000000000a';
+      INSERT INTO products (
+        id, brand_id, category_code, line, variant, normalized_size_code,
+        identity_key, slug, lifecycle, created_at, updated_at
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000025',
+        '018f47a0-0000-7000-8000-000000000003',
+        'disposable_diaper', 'Alternative', 'Regular', '4+',
+        'fixture-brand|disposable_diaper|alternative|regular|4+',
+        'fixture-brand-alternative-4-plus', 'active', ${now}, ${now}
+      )
     `)
   }, 30_000)
 
@@ -97,6 +152,48 @@ describe('catalog service D1 boundary', () => {
         ],
         missingCriticalFacts: [],
         conflictReasons: [],
+      },
+    ])
+  })
+
+  it('returns a bounded change-only universal price history', async () => {
+    await expect(
+      listProductPriceHistory(database.binding, {
+        productId: '018f47a0-0000-7000-8000-000000000004',
+        limit: 10,
+      }),
+    ).resolves.toEqual([
+      {
+        observedAt: now - 1_000,
+        payableAmountMinor: 1_999,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        continuity: 'start',
+      },
+      {
+        observedAt: now,
+        payableAmountMinor: 1_799,
+        totalUnits: 80,
+        requiredPackageCount: 1,
+        continuity: 'continuous',
+      },
+    ])
+  })
+
+  it('returns small explicitly labeled Product alternatives', async () => {
+    await expect(
+      listProductAlternatives(database.binding, {
+        productId: '018f47a0-0000-7000-8000-000000000004',
+      }),
+    ).resolves.toEqual([
+      {
+        productId: '018f47a0-0000-7000-8000-000000000025',
+        slug: 'fixture-brand-alternative-4-plus',
+        brand: 'Fixture Brand',
+        line: 'Alternative',
+        variant: 'Regular',
+        normalizedSizeCode: '4+',
+        relationship: 'same_category_and_size',
       },
     ])
   })

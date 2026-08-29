@@ -45,6 +45,7 @@ export type RankedOffer = {
   listingId: string
   retailerId: string
   retailerName: string
+  listingConfirmedAt: number
   payableAmountMinor: number
   requiredPackageCount: number
   totalUnits: number
@@ -89,12 +90,43 @@ const conflictingFields = (left: MatchFacts, right: MatchFacts) =>
     )
   })
 
+export const createMatchFingerprint = (facts: MatchFacts) =>
+  JSON.stringify(
+    Object.fromEntries(
+      comparableFactNames.map((field) => [field, normalizeFact(facts[field])]),
+    ),
+  )
+
 export function parseNormalizedSize(source: string): NormalizedSizeCode | null {
   const match = source.trim().match(/^(?:maat|mt\.?|size)\s*([0-9](?:\+)?)$/i)
   const candidate = match?.[1]
   return normalizedSizeCodes.includes(candidate as NormalizedSizeCode)
     ? (candidate as NormalizedSizeCode)
     : null
+}
+
+export function createSourceNormalizer(input: {
+  categoryAliases: Readonly<Record<string, CategoryCode>>
+  sizeAliases: Readonly<Record<string, NormalizedSizeCode>>
+}) {
+  return {
+    category(source: string): CategoryCode | null {
+      const raw = source.trim()
+      const category = input.categoryAliases[raw]
+      return category !== undefined && categoryCodes.includes(category)
+        ? category
+        : null
+    },
+    size(source: string): NormalizedSizeCode | null {
+      const exactSize = parseNormalizedSize(source)
+      if (exactSize !== null) return exactSize
+      const raw = source.trim()
+      const size = input.sizeAliases[raw]
+      return size !== undefined && normalizedSizeCodes.includes(size)
+        ? size
+        : null
+    },
+  }
 }
 
 export function buildProductIdentityKey(input: {
@@ -126,9 +158,9 @@ export function buildProductIdentityKey(input: {
 export function calculateOfferPrice(input: {
   payableAmountMinor: number
   packageUnitCount: number
-  requiredPackageCount?: number
+  requiredPackageCount: number
 }) {
-  const requiredPackageCount = input.requiredPackageCount ?? 1
+  const requiredPackageCount = input.requiredPackageCount
   if (
     !Number.isSafeInteger(input.payableAmountMinor) ||
     input.payableAmountMinor <= 0 ||
@@ -155,6 +187,7 @@ export function calculateOfferPrice(input: {
 
 const isCurrent = (offer: RankedOffer, now: number) =>
   offer.availability === 'available' &&
+  offer.listingConfirmedAt >= now - currentOfferFreshnessMilliseconds &&
   offer.confirmedAt >= now - currentOfferFreshnessMilliseconds &&
   (offer.declaredExpiresAt === null || offer.declaredExpiresAt > now)
 
@@ -201,6 +234,68 @@ export function rankCurrentOffers<Offer extends RankedOffer>(
       primary.find(({ requiredPackageCount }) => requiredPackageCount === 1) ??
       null,
   }
+}
+
+export type ObservedPriceFact = {
+  observedAt: number
+  payableAmountMinor: number
+  totalUnits: number
+  requiredPackageCount: number
+  eligibility: 'universal' | 'restricted'
+  availability: 'available' | 'unavailable' | 'unknown'
+}
+
+export function buildObservedPriceHistory(observations: ObservedPriceFact[]) {
+  const points: Array<
+    Pick<
+      ObservedPriceFact,
+      | 'observedAt'
+      | 'payableAmountMinor'
+      | 'totalUnits'
+      | 'requiredPackageCount'
+    > & { continuity: 'start' | 'continuous' }
+  > = []
+  let current:
+    | (Pick<
+        ObservedPriceFact,
+        'payableAmountMinor' | 'totalUnits' | 'requiredPackageCount'
+      > & { confirmedAt: number })
+    | null = null
+
+  for (const observation of [...observations].sort(
+    (left, right) => left.observedAt - right.observedAt,
+  )) {
+    if (observation.eligibility === 'restricted') continue
+    if (observation.availability !== 'available') {
+      current = null
+      continue
+    }
+    const isUnchanged =
+      current !== null &&
+      current.payableAmountMinor === observation.payableAmountMinor &&
+      current.totalUnits === observation.totalUnits &&
+      current.requiredPackageCount === observation.requiredPackageCount
+    const continuous =
+      current !== null &&
+      observation.observedAt - current.confirmedAt <=
+        currentOfferFreshnessMilliseconds
+    if (!isUnchanged) {
+      points.push({
+        observedAt: observation.observedAt,
+        payableAmountMinor: observation.payableAmountMinor,
+        totalUnits: observation.totalUnits,
+        requiredPackageCount: observation.requiredPackageCount,
+        continuity: continuous ? 'continuous' : 'start',
+      })
+    }
+    current = {
+      payableAmountMinor: observation.payableAmountMinor,
+      totalUnits: observation.totalUnits,
+      requiredPackageCount: observation.requiredPackageCount,
+      confirmedAt: observation.observedAt,
+    }
+  }
+  return points
 }
 
 const hasValidGtinChecksum = (gtin: string) => {
