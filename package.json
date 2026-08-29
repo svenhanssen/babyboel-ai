@@ -14,6 +14,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "check": "pnpm format:check && pnpm lint && pnpm validate:config && pnpm validate:migrations && pnpm cf-typegen:check && pnpm typecheck && pnpm test && pnpm build",
     "cf-typegen": "wrangler types",
     "cf-typegen:check": "pnpm cf-typegen && git diff --exit-code -- worker-configuration.d.ts",
@@ -26,6 +28,7 @@
   "dependencies": {
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",
+    "drizzle-orm": "^0.45.2",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"
@@ -39,6 +42,7 @@
     "@typescript-eslint/eslint-plugin": "latest",
     "@typescript-eslint/parser": "latest",
     "@vitejs/plugin-react": "latest",
+    "drizzle-kit": "^0.31.10",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "globals": "latest",

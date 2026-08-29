@@ -4,6 +4,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",
+    "drizzle.config.ts",
     "vite.config.ts",
     "vitest.config.ts"
   ],
