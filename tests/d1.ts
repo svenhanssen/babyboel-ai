@@ -7,6 +7,28 @@ type D1Result<Row> = {
   results: Row[]
   success: boolean
 }
+const boundSql = Symbol('boundSql')
+
+const quoteSqlValue = (value: unknown) => {
+  if (value === null) return 'NULL'
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Unsupported SQL number')
+    return String(value)
+  }
+  if (typeof value === 'boolean') return value ? '1' : '0'
+  if (typeof value === 'string') return `'${value.replaceAll("'", "''")}'`
+  throw new Error(`Unsupported SQL value: ${typeof value}`)
+}
+
+const bindSql = (sql: string, values: unknown[]) => {
+  let index = 0
+  const bound = sql.replaceAll('?', () => {
+    if (index >= values.length) throw new Error('Missing SQL binding')
+    return quoteSqlValue(values[index++])
+  })
+  if (index !== values.length) throw new Error('Unused SQL binding')
+  return bound
+}
 
 const runWrangler = (args: string[]) =>
   spawnSync('pnpm', ['exec', 'wrangler', 'd1', ...args], {
@@ -32,7 +54,7 @@ export const createD1TestDatabase = async () => {
     )
   }
 
-  const execute = <Row = Record<string, unknown>>(sql: string) => {
+  const executeDetailed = <Row = Record<string, unknown>>(sql: string) => {
     const result = runWrangler([
       'execute',
       'DB',
@@ -47,8 +69,10 @@ export const createD1TestDatabase = async () => {
     }
 
     const output = JSON.parse(result.stdout) as D1Result<Row>[]
-    return output.flatMap((entry) => entry.results)
+    return output
   }
+  const execute = <Row = Record<string, unknown>>(sql: string) =>
+    executeDetailed<Row>(sql).flatMap((entry) => entry.results)
 
   const executeFile = (path: string) => {
     const result = runWrangler([
@@ -64,9 +88,67 @@ export const createD1TestDatabase = async () => {
     }
   }
 
+  const prepare = (sql: string) => {
+    const statement = (values: unknown[]) => {
+      const run = () => {
+        const bound = bindSql(sql, values)
+        return execute(bound)
+      }
+      return {
+        [boundSql]: () => bindSql(sql, values),
+        bind: (...nextValues: unknown[]) => statement(nextValues),
+        all: () =>
+          Promise.resolve({
+            results: run(),
+            success: true,
+            meta: {},
+          }),
+        first: (column?: string) => {
+          const [row] = run()
+          return Promise.resolve(
+            column ? (row?.[column] ?? null) : (row ?? null),
+          )
+        },
+        raw: () => Promise.resolve(run().map((row) => Object.values(row))),
+        run: () =>
+          Promise.resolve({
+            results: run(),
+            success: true,
+            meta: {},
+          }),
+      }
+    }
+    return statement([])
+  }
+
   return {
     execute,
     executeFile,
+    binding: {
+      prepare,
+      batch: (statements: ReturnType<Env['DB']['prepare']>[]) =>
+        Promise.resolve(
+          executeDetailed(
+            statements
+              .map((statement) =>
+                (
+                  statement as unknown as {
+                    [boundSql]: () => string
+                  }
+                )[boundSql](),
+              )
+              .join(';\n'),
+          ),
+        ),
+      exec: (sql: string) => {
+        execute(sql)
+        return Promise.resolve({ count: 0, duration: 0 })
+      },
+      dump: () => Promise.resolve(new ArrayBuffer(0)),
+      withSession: () => {
+        throw new Error('D1 sessions are not available in this test helper')
+      },
+    } as unknown as Env['DB'],
     close: () => rm(persistencePath, { recursive: true, force: true }),
   }
 }
