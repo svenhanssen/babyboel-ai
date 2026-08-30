@@ -1,33 +1,39 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/admin')({
-  component: AdminPlaceholder,
+  component: AdminLayout,
 })
 
-function AdminPlaceholder() {
+function AdminLayout() {
   return (
     <main className="admin-page page" id="main" lang="en" tabIndex={-1}>
-      <header className="page-heading">
+      <header className="page-heading admin-heading">
         <div>
           <p className="eyebrow">Operator workspace</p>
-          <h1>Protected Admin workspace</h1>
+          <h1>Babyboel Admin</h1>
         </div>
         <span className="tag">Protected</span>
       </header>
-      <section aria-labelledby="admin-status" className="surface">
-        <h2 id="admin-status">Workspace status</h2>
-        <p>
-          Cloudflare Access verifies the configured operator before this route
-          is rendered. Review workflows are delivered separately.
-        </p>
-        <div className="notice" role="status">
-          <strong>The operator boundary is active.</strong>
-          <span>
-            State-changing requests also require the trusted origin and the
-            Admin CSRF token.
-          </span>
-        </div>
-      </section>
+      <nav aria-label="Admin navigation" className="admin-nav">
+        <Link activeProps={{ 'aria-current': 'page' }} to="/admin">
+          Health
+        </Link>
+        <Link
+          activeProps={{ 'aria-current': 'page' }}
+          search={{ offset: 0, q: '', status: 'open' }}
+          to="/admin/reviews"
+        >
+          Reviews
+        </Link>
+        <Link
+          activeProps={{ 'aria-current': 'page' }}
+          search={{ entityType: 'all', lifecycle: 'all', q: '' }}
+          to="/admin/catalog"
+        >
+          Catalog
+        </Link>
+      </nav>
+      <Outlet />
     </main>
   )
 }
