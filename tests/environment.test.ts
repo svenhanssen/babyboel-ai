@@ -46,11 +46,15 @@ describe('deployment configuration guards', () => {
           ACCESS_AUD: 'preview-audience',
           ACCESS_OPERATOR_SUBJECT: 'github|operator',
           TRUSTED_ORIGIN: 'https://preview.babyboel.example',
+          CLOUDFLARE_OBSERVABILITY_URL: 'https://dash.cloudflare.com/',
+          OPERATOR_EMAIL: 'operator@example.com',
+          ALERT_FROM_EMAIL: 'alerts@example.com',
         },
         d1_databases: [{ binding: 'DB', database_name: 'babyboel-preview' }],
         r2_buckets: [
           { binding: 'EVIDENCE', bucket_name: 'babyboel-evidence-preview' },
         ],
+        version_metadata: { binding: 'CF_VERSION_METADATA' },
       },
       production: {
         vars: {
@@ -60,11 +64,15 @@ describe('deployment configuration guards', () => {
           ACCESS_AUD: 'production-audience',
           ACCESS_OPERATOR_SUBJECT: 'github|operator',
           TRUSTED_ORIGIN: 'https://babyboel.example',
+          CLOUDFLARE_OBSERVABILITY_URL: 'https://dash.cloudflare.com/',
+          OPERATOR_EMAIL: 'operator@example.com',
+          ALERT_FROM_EMAIL: 'alerts@example.com',
         },
         d1_databases: [{ binding: 'DB', database_name: 'babyboel-production' }],
         r2_buckets: [
           { binding: 'EVIDENCE', bucket_name: 'babyboel-evidence-production' },
         ],
+        version_metadata: { binding: 'CF_VERSION_METADATA' },
       },
     },
   }

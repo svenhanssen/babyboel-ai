@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  exists,
   gt,
   gte,
   isNull,
@@ -23,6 +24,7 @@ import {
   packages,
   products,
   reviewCases,
+  retailerSources,
   retailers,
   sourceObservations,
 } from '../db/schema'
@@ -136,6 +138,29 @@ export async function listCurrentProductOffers(
       and(
         eq(products.id, input.productId),
         eq(products.lifecycle, 'active'),
+        eq(retailers.lifecycle, 'active'),
+        exists(
+          db
+            .select({ id: retailerSources.id })
+            .from(retailerSources)
+            .innerJoin(
+              sourceObservations,
+              eq(sourceObservations.retailerSourceId, retailerSources.id),
+            )
+            .where(
+              and(
+                eq(
+                  sourceObservations.id,
+                  sql<string>`coalesce(${offers.latestObservationId}, ${listings.latestObservationId})`,
+                ),
+                eq(retailerSources.authorizationStatus, 'authorized'),
+                or(
+                  isNull(retailerSources.expiresAt),
+                  gt(retailerSources.expiresAt, input.now),
+                ),
+              ),
+            ),
+        ),
         eq(packages.lifecycle, 'active'),
         eq(listings.matchStatus, 'matched'),
         eq(listings.availability, 'available'),

@@ -27,7 +27,7 @@ describe('normalized D1 catalog boundary', () => {
       "SELECT name, strict FROM pragma_table_list WHERE schema = 'main' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_METADATA', 'd1_migrations') ORDER BY name",
     )
 
-    expect(tables).toHaveLength(13)
+    expect(tables).toHaveLength(14)
     expect(tables.every(({ strict }) => strict === 1)).toBe(true)
   })
 

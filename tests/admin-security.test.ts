@@ -353,13 +353,15 @@ describe('Admin request boundary', () => {
   })
 
   it('redacts unexpected failures and keeps Admin responses private', async () => {
+    const log = vi.fn()
     const fetch = createApplicationSecurityBoundary(
       () => {
         throw new Error('secret database detail')
       },
       {
         verifyAssertion: vi.fn().mockResolvedValue(verifiedActor),
-        log: vi.fn(),
+        log,
+        generateRequestId: () => 'request-123',
       },
     )
 
@@ -373,6 +375,16 @@ describe('Admin request boundary', () => {
     expect(response.status).toBe(500)
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(await response.text()).toBe('Internal Server Error')
+    expect(log).toHaveBeenCalledWith({
+      event: 'operational_error',
+      outcome: 'failure',
+      environment: 'production',
+      requestId: 'request-123',
+      errorCode: 'ADMIN_REQUEST_FAILED',
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toContain(
+      'secret database detail',
+    )
   })
 
   it('does not allow a handler called outside the boundary to invent context', () => {

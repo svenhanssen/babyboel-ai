@@ -13,7 +13,7 @@ acquisition.
   observations, private evidence metadata, Review state, and compact audit
   facts. There is no replay or projection layer.
 - **R2** will hold bounded evidence artifacts.
-- **Cloudflare Email** is declared for later operational alerts.
+- **Cloudflare Email** sends deduplicated production-only operational alerts.
 - **Fixture mode** is mandatory locally and in previews. Production acquisition
   starts disabled and is activated only through the retailer activation gates.
 
@@ -132,6 +132,20 @@ Preview and production deployment steps remain inactive until their GitHub
 environments contain `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 Production smoke hooks additionally use `PUBLIC_SMOKE_URL`,
 `PROTECTED_SMOKE_URL`, and `PROTECTED_SMOKE_TOKEN` when configured.
+
+## Operational health
+
+`/health` exposes only Worker liveness and a minimal D1 read for deployment
+smoke checks. `/admin/health` is protected by the same Cloudflare Access
+boundary as every Admin route and derives detailed Retailer Run, authorization,
+freshness, Review, retention, alert, deployment, and backup status from current
+D1 facts. It links to Cloudflare's native logs and traces instead of recreating
+an observability dashboard.
+
+The scheduled handler runs bounded, retry-safe evidence cleanup. Actionable
+retailer alerts are sent only in production to the configured operator address;
+local and preview runs never send email. See [OPERATIONS.md](OPERATIONS.md) for
+containment, recovery, verification, and evidence-capture guidance.
 
 ## Delivery and rollback
 

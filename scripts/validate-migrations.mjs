@@ -144,12 +144,12 @@ if (migrations.length > 0) {
   const [execution] = JSON.parse(guarantees.stdout)
   const [counts] = execution.results
   if (
-    counts.strict_tables !== 13 ||
+    counts.strict_tables !== 14 ||
     counts.append_only_triggers !== 4 ||
     counts.offer_unit_triggers !== 2
   ) {
     throw new Error(
-      'Migrated D1 schema must contain 13 strict tables and all invariant triggers',
+      'Migrated D1 schema must contain 14 strict tables and all invariant triggers',
     )
   }
 }

@@ -149,6 +149,126 @@ describe('catalog service D1 boundary', () => {
     `)
   })
 
+  it('suppresses Offers immediately when one Retailer is paused', async () => {
+    database.execute(`
+      INSERT INTO retailers (
+        id, slug, name, lifecycle, latest_run_status, latest_run_at,
+        latest_successful_run_at, created_at, updated_at
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000040', 'second-retailer',
+        'Second Retailer', 'active', 'complete', ${now}, ${now}, ${now}, ${now}
+      );
+      INSERT INTO retailer_sources (
+        id, retailer_id, source_key, acquisition_method, authorization_status,
+        reviewed_at, expires_at, retention_rule_reference, created_at, updated_at
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000041',
+        '018f47a0-0000-7000-8000-000000000040', 'second-feed', 'feed',
+        'authorized', ${now}, ${now + 1_000_000}, 'second-source.md', ${now}, ${now}
+      );
+      INSERT INTO retailer_runs (
+        id, retailer_id, origin, started_at, finished_at, status,
+        fetched_count, accepted_count, confirmed_count, full_traversal
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000042',
+        '018f47a0-0000-7000-8000-000000000040', 'scheduled', ${now - 1_000},
+        ${now}, 'complete', 1, 1, 1, 1
+      );
+      INSERT INTO listings (
+        id, retailer_id, package_id, retailer_sku, channel, seller_retailer_id,
+        source_title, outbound_destination, availability, match_status,
+        match_method, last_match_decision_at, confirmed_at, created_at, updated_at
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000043',
+        '018f47a0-0000-7000-8000-000000000040',
+        '018f47a0-0000-7000-8000-000000000005', 'SECOND-SKU',
+        'nationwide_online', '018f47a0-0000-7000-8000-000000000040',
+        'Second Retailer Listing', 'https://second.example/listing', 'available',
+        'matched', 'verified_gtin', ${now}, ${now}, ${now}, ${now}
+      );
+      INSERT INTO offers (
+        id, listing_id, source_offer_key, payable_amount_minor, currency,
+        required_package_count, total_units, unit_price_numerator,
+        unit_price_denominator, eligibility, confirmed_at, availability,
+        created_at, updated_at
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000044',
+        '018f47a0-0000-7000-8000-000000000043', 'second-single', 2099, 'EUR',
+        1, 80, 2099, 80, 'universal', ${now}, 'available', ${now}, ${now}
+      );
+      INSERT INTO source_observations (
+        id, retailer_source_id, retailer_run_id, listing_id, offer_id,
+        source_listing_key, source_offer_key, observed_at, retrieved_at,
+        source_url, raw_facts_json, normalized_facts_json, extraction_method,
+        issue_codes_json, affected_fields_json, outcome, response_integrity_hash,
+        observation_format, adapter_identifier
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000045',
+        '018f47a0-0000-7000-8000-000000000041',
+        '018f47a0-0000-7000-8000-000000000042',
+        '018f47a0-0000-7000-8000-000000000043',
+        '018f47a0-0000-7000-8000-000000000044', 'SECOND-SKU', 'second-single',
+        ${now}, ${now}, 'https://second.example/listing', '{}', '{}', 'api',
+        '[]', '[]', 'success', 'sha256:second', 1, 'second-adapter@1'
+      );
+      UPDATE listings SET latest_observation_id =
+        '018f47a0-0000-7000-8000-000000000045'
+      WHERE id = '018f47a0-0000-7000-8000-000000000043';
+      UPDATE offers SET latest_observation_id =
+        '018f47a0-0000-7000-8000-000000000045'
+      WHERE id = '018f47a0-0000-7000-8000-000000000044';
+      UPDATE retailers
+      SET lifecycle = 'paused'
+      WHERE id = '018f47a0-0000-7000-8000-000000000001'
+    `)
+    const paused = await listCurrentProductOffers(database.binding, {
+      productId: '018f47a0-0000-7000-8000-000000000004',
+      now,
+    })
+    expect(paused.primary.map(({ sourceOfferKey }) => sourceOfferKey)).toEqual([
+      'second-single',
+    ])
+    expect(paused.restricted).toEqual([])
+    database.execute(`
+      UPDATE retailers
+      SET lifecycle = 'active'
+      WHERE id = '018f47a0-0000-7000-8000-000000000001';
+      UPDATE retailers
+      SET lifecycle = 'paused'
+      WHERE id = '018f47a0-0000-7000-8000-000000000040'
+    `)
+  })
+
+  it('suppresses Offers when source authorization is revoked', async () => {
+    database.execute(`
+      INSERT INTO retailer_sources (
+        id, retailer_id, source_key, acquisition_method, authorization_status,
+        reviewed_at, expires_at, retention_rule_reference, created_at, updated_at
+      ) VALUES (
+        '018f47a0-0000-7000-8000-000000000040',
+        '018f47a0-0000-7000-8000-000000000001', 'unrelated-authorized-feed',
+        'feed', 'authorized', ${now}, ${now + 1_000_000},
+        'tests/fixtures/unrelated-source.md', ${now}, ${now}
+      );
+      UPDATE retailer_sources
+      SET authorization_status = 'revoked'
+      WHERE id = '018f47a0-0000-7000-8000-000000000002'
+    `)
+    const revoked = await listCurrentProductOffers(database.binding, {
+      productId: '018f47a0-0000-7000-8000-000000000004',
+      now,
+    })
+    expect(revoked.primary).toEqual([])
+    expect(revoked.restricted).toEqual([])
+    database.execute(`
+      UPDATE retailer_sources
+      SET authorization_status = 'authorized'
+      WHERE id = '018f47a0-0000-7000-8000-000000000002';
+      DELETE FROM retailer_sources
+      WHERE id = '018f47a0-0000-7000-8000-000000000040'
+    `)
+  })
+
   it('derives Review candidates from active exact catalog facts', async () => {
     const candidates = await findListingMatchCandidates(database.binding, {
       brand: 'Fixture Brand',
