@@ -14,16 +14,16 @@ describe('normalized D1 catalog boundary', () => {
 
   beforeAll(async () => {
     database = await createD1TestDatabase()
-    database.executeFile(fixturePath)
-    database.executeFile(queryPlanFixturePath)
+    await database.executeFile(fixturePath)
+    await database.executeFile(queryPlanFixturePath)
   }, 30_000)
 
   afterAll(async () => {
     await database.close()
   })
 
-  it('creates only strict application tables', () => {
-    const tables = database.execute<{ name: string; strict: number }>(
+  it('creates only strict application tables', async () => {
+    const tables = await database.execute<{ name: string; strict: number }>(
       "SELECT name, strict FROM pragma_table_list WHERE schema = 'main' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_METADATA', 'd1_migrations') ORDER BY name",
     )
 
@@ -31,8 +31,11 @@ describe('normalized D1 catalog boundary', () => {
     expect(tables.every(({ strict }) => strict === 1)).toBe(true)
   })
 
-  it('uses representative deterministic volume for query plans', () => {
-    const [result] = database.execute<{ products: number; offers: number }>(`
+  it('uses representative deterministic volume for query plans', async () => {
+    const [result] = await database.execute<{
+      products: number
+      offers: number
+    }>(`
       SELECT
         (SELECT COUNT(*) FROM products) AS products,
         (SELECT COUNT(*) FROM offers) AS offers
@@ -41,8 +44,8 @@ describe('normalized D1 catalog boundary', () => {
     expect(result).toEqual({ products: 97, offers: 97 })
   })
 
-  it('loads a coherent Product, Package, Listing, and Offer fixture', () => {
-    const [result] = database.execute<{
+  it('loads a coherent Product, Package, Listing, and Offer fixture', async () => {
+    const [result] = await database.execute<{
       category: string
       normalizedSize: string
       units: number
@@ -70,17 +73,17 @@ describe('normalized D1 catalog boundary', () => {
     })
   })
 
-  it('rejects invalid UUIDv7 identities', () => {
-    expect(() =>
+  it('rejects invalid UUIDv7 identities', async () => {
+    await expect(
       database.execute(`
         INSERT INTO brands (id, name, slug, created_at, updated_at)
         VALUES ('not-a-uuid', 'Invalid', 'invalid', 1, 1)
       `),
-    ).toThrow(/brands_id_uuidv7_check/)
+    ).rejects.toThrow(/brands_id_uuidv7_check/)
   })
 
-  it('rejects missing foreign keys', () => {
-    expect(() =>
+  it('rejects missing foreign keys', async () => {
+    await expect(
       database.execute(`
         INSERT INTO packages (
           id, product_id, unit_count, lifecycle, created_at, updated_at
@@ -90,11 +93,11 @@ describe('normalized D1 catalog boundary', () => {
           10, 'active', 1, 1
         )
       `),
-    ).toThrow(/FOREIGN KEY constraint failed/)
+    ).rejects.toThrow(/FOREIGN KEY constraint failed/)
   })
 
-  it('enforces the launch taxonomy', () => {
-    expect(() =>
+  it('enforces the launch taxonomy', async () => {
+    await expect(
       database.execute(`
         INSERT INTO products (
           id, brand_id, category_code, normalized_size_code, identity_key,
@@ -106,11 +109,11 @@ describe('normalized D1 catalog boundary', () => {
           'active', 1, 1
         )
       `),
-    ).toThrow(/products_size_applicability_check/)
+    ).rejects.toThrow(/products_size_applicability_check/)
   })
 
-  it('stores exact Offer operands', () => {
-    expect(() =>
+  it('stores exact Offer operands', async () => {
+    await expect(
       database.execute(`
         INSERT INTO offers (
           id, listing_id, source_offer_key, payable_amount_minor, currency,
@@ -124,11 +127,11 @@ describe('normalized D1 catalog boundary', () => {
           'universal', 1787990400000, 'available', 1, 1
         )
       `),
-    ).toThrow(/offers_unit_price_check/)
+    ).rejects.toThrow(/offers_unit_price_check/)
   })
 
-  it('derives Offer units from Package quantity', () => {
-    expect(() =>
+  it('derives Offer units from Package quantity', async () => {
+    await expect(
       database.execute(`
         INSERT INTO offers (
           id, listing_id, source_offer_key, payable_amount_minor, currency,
@@ -142,11 +145,11 @@ describe('normalized D1 catalog boundary', () => {
           'universal', ${fixtureNow}, 'available', 1, 1
         )
       `),
-    ).toThrow(/offer total units do not match its Package quantity/)
+    ).rejects.toThrow(/offer total units do not match its Package quantity/)
   })
 
-  it('rejects marketplace sellers', () => {
-    expect(() =>
+  it('rejects marketplace sellers', async () => {
+    await expect(
       database.execute(`
         INSERT INTO listings (
           id, retailer_id, package_id, retailer_sku, channel,
@@ -165,11 +168,11 @@ describe('normalized D1 catalog boundary', () => {
           ${fixtureNow}, ${fixtureNow}
         )
       `),
-    ).toThrow(/listings_seller_check/)
+    ).rejects.toThrow(/listings_seller_check/)
   })
 
-  it('rejects malformed retained JSON', () => {
-    expect(() =>
+  it('rejects malformed retained JSON', async () => {
+    await expect(
       database.execute(`
         INSERT INTO audit_log (
           id, actor, occurred_at, action, reason, target_type, target_id,
@@ -182,11 +185,11 @@ describe('normalized D1 catalog boundary', () => {
           '{not-json}', 'invalid-json'
         )
       `),
-    ).toThrow(/audit_log_json_check/)
+    ).rejects.toThrow(/audit_log_json_check/)
   })
 
-  it('selects current Offers using expiry and the 48-hour freshness boundary', () => {
-    const current = database.execute<{ sourceOfferKey: string }>(`
+  it('selects current Offers using expiry and the 48-hour freshness boundary', async () => {
+    const current = await database.execute<{ sourceOfferKey: string }>(`
       INSERT INTO offers (
         id, listing_id, source_offer_key, payable_amount_minor, currency,
         required_package_count, total_units, unit_price_numerator,
@@ -218,8 +221,8 @@ describe('normalized D1 catalog boundary', () => {
     expect(current).toEqual([{ sourceOfferKey: 'single' }])
   })
 
-  it('deduplicates a retried source observation', () => {
-    expect(() =>
+  it('deduplicates a retried source observation', async () => {
+    await expect(
       database.execute(`
         INSERT INTO source_observations
         SELECT
@@ -234,26 +237,26 @@ describe('normalized D1 catalog boundary', () => {
         FROM source_observations
         WHERE id = '018f47a0-0000-7000-8000-00000000000a'
       `),
-    ).toThrow(/UNIQUE constraint failed/)
+    ).rejects.toThrow(/UNIQUE constraint failed/)
   })
 
-  it('keeps observations append-only', () => {
-    expect(() =>
+  it('keeps observations append-only', async () => {
+    await expect(
       database.execute(`
         UPDATE source_observations
         SET sanitized_excerpt = 'rewritten'
         WHERE id = '018f47a0-0000-7000-8000-00000000000a'
       `),
-    ).toThrow(/source observations are append-only/)
+    ).rejects.toThrow(/source observations are append-only/)
   })
 
-  it('keeps audit facts append-only', () => {
-    expect(() =>
+  it('keeps audit facts append-only', async () => {
+    await expect(
       database.execute(`
         DELETE FROM audit_log
         WHERE id = '018f47a0-0000-7000-8000-00000000000c'
       `),
-    ).toThrow(/audit log is append-only/)
+    ).rejects.toThrow(/audit log is append-only/)
   })
 
   it.each([
@@ -315,8 +318,8 @@ describe('normalized D1 catalog boundary', () => {
       `,
       index: 'evidence_artifacts_retention_idx',
     },
-  ])('uses the intended index for $name', ({ sql, index }) => {
-    const plan = database.execute<{ detail: string }>(
+  ])('uses the intended index for $name', async ({ sql, index }) => {
+    const plan = await database.execute<{ detail: string }>(
       `EXPLAIN QUERY PLAN ${sql}`,
     )
 

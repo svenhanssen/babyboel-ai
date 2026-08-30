@@ -1,155 +1,61 @@
-import { spawnSync } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFile, readdir } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
-type D1Result<Row> = {
-  results: Row[]
-  success: boolean
-}
-const boundSql = Symbol('boundSql')
+import { Miniflare } from 'miniflare'
+import { unstable_splitSqlQuery as splitSqlQuery } from 'wrangler'
 
-const quoteSqlValue = (value: unknown) => {
-  if (value === null) return 'NULL'
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('Unsupported SQL number')
-    return String(value)
-  }
-  if (typeof value === 'boolean') return value ? '1' : '0'
-  if (typeof value === 'string') return `'${value.replaceAll("'", "''")}'`
-  throw new Error(`Unsupported SQL value: ${typeof value}`)
-}
-
-const bindSql = (sql: string, values: unknown[]) => {
-  let index = 0
-  const bound = sql.replaceAll('?', () => {
-    if (index >= values.length) throw new Error('Missing SQL binding')
-    return quoteSqlValue(values[index++])
-  })
-  if (index !== values.length) throw new Error('Unused SQL binding')
-  return bound
-}
-
-const runWrangler = (args: string[]) =>
-  spawnSync('pnpm', ['exec', 'wrangler', 'd1', ...args], {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    env: process.env,
-  })
+const migrationsPath = resolve('migrations')
 
 export const createD1TestDatabase = async () => {
-  const persistencePath = await mkdtemp(join(tmpdir(), 'babyboel-d1-'))
-  const migration = runWrangler([
-    'migrations',
-    'apply',
-    'DB',
-    '--local',
-    `--persist-to=${persistencePath}`,
-  ])
+  const miniflare = new Miniflare({
+    modules: true,
+    script: 'export default {}',
+    d1Databases: {
+      DB: '00000000-0000-0000-0000-000000000000',
+    },
+  })
+  // Miniflare's D1 type is structurally compatible with the generated binding,
+  // but typescript-eslint cannot resolve its bundled Workers type declaration.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const binding: Env['DB'] = await miniflare.getD1Database('DB')
 
-  if (migration.status !== 0) {
-    await rm(persistencePath, { recursive: true, force: true })
-    throw new Error(
-      `Unable to apply D1 migrations:\n${migration.stdout}\n${migration.stderr}`,
+  const runStatements = <Row = Record<string, unknown>>(
+    sql: string,
+  ): Promise<{ results: Row[] }[]> => {
+    const statements = splitSqlQuery(sql).map((query) => binding.prepare(query))
+    return statements.length === 0
+      ? Promise.resolve([])
+      : binding.batch<Row>(statements)
+  }
+
+  const migrationFiles = (await readdir(migrationsPath))
+    .filter((file) => file.endsWith('.sql'))
+    .sort()
+  for (const migrationFile of migrationFiles) {
+    await runStatements(
+      await readFile(resolve(migrationsPath, migrationFile), 'utf8'),
     )
   }
 
-  const executeDetailed = <Row = Record<string, unknown>>(sql: string) => {
-    const result = runWrangler([
-      'execute',
-      'DB',
-      '--local',
-      `--persist-to=${persistencePath}`,
-      `--command=${sql}`,
-      '--json',
-    ])
-
-    if (result.status !== 0) {
-      throw new Error(result.stderr || result.stdout)
-    }
-
-    const output = JSON.parse(result.stdout) as D1Result<Row>[]
-    return output
+  const executeDetailed = async <Row = Record<string, unknown>>(
+    sql: string,
+  ) => {
+    return runStatements<Row>(sql)
   }
-  const execute = <Row = Record<string, unknown>>(sql: string) =>
-    executeDetailed<Row>(sql).flatMap((entry) => entry.results)
+  const execute = async <Row = Record<string, unknown>>(sql: string) =>
+    (await executeDetailed<Row>(sql)).flatMap(
+      (entry: { results: Row[] }) => entry.results,
+    )
 
-  const executeFile = (path: string) => {
-    const result = runWrangler([
-      'execute',
-      'DB',
-      '--local',
-      `--persist-to=${persistencePath}`,
-      `--file=${path}`,
-    ])
-
-    if (result.status !== 0) {
-      throw new Error(result.stderr || result.stdout)
-    }
-  }
-
-  const prepare = (sql: string) => {
-    const statement = (values: unknown[]) => {
-      const run = () => {
-        const bound = bindSql(sql, values)
-        return execute(bound)
-      }
-      return {
-        [boundSql]: () => bindSql(sql, values),
-        bind: (...nextValues: unknown[]) => statement(nextValues),
-        all: () =>
-          Promise.resolve({
-            results: run(),
-            success: true,
-            meta: {},
-          }),
-        first: (column?: string) => {
-          const [row] = run()
-          return Promise.resolve(
-            column ? (row?.[column] ?? null) : (row ?? null),
-          )
-        },
-        raw: () => Promise.resolve(run().map((row) => Object.values(row))),
-        run: () =>
-          Promise.resolve({
-            results: run(),
-            success: true,
-            meta: {},
-          }),
-      }
-    }
-    return statement([])
+  const executeFile = async (path: string) => {
+    await runStatements(await readFile(path, 'utf8'))
   }
 
   return {
     execute,
     executeFile,
-    binding: {
-      prepare,
-      batch: (statements: ReturnType<Env['DB']['prepare']>[]) =>
-        Promise.resolve(
-          executeDetailed(
-            statements
-              .map((statement) =>
-                (
-                  statement as unknown as {
-                    [boundSql]: () => string
-                  }
-                )[boundSql](),
-              )
-              .join(';\n'),
-          ),
-        ),
-      exec: (sql: string) => {
-        execute(sql)
-        return Promise.resolve({ count: 0, duration: 0 })
-      },
-      dump: () => Promise.resolve(new ArrayBuffer(0)),
-      withSession: () => {
-        throw new Error('D1 sessions are not available in this test helper')
-      },
-    } as unknown as Env['DB'],
-    close: () => rm(persistencePath, { recursive: true, force: true }),
+    binding,
+    close: () => miniflare.dispose(),
   }
 }
 

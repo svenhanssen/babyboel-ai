@@ -49,7 +49,7 @@ describe('catalog ingestion D1 boundary', () => {
 
   beforeAll(async () => {
     database = await createD1TestDatabase()
-    database.executeFile(fixturePath)
+    await database.executeFile(fixturePath)
   }, 30_000)
 
   afterAll(async () => {
@@ -68,7 +68,7 @@ describe('catalog ingestion D1 boundary', () => {
       }),
     ).resolves.toEqual({ id: observation.id, inserted: false })
 
-    const [{ count }] = database.execute<{ count: number }>(`
+    const [{ count }] = await database.execute<{ count: number }>(`
       SELECT COUNT(*) AS count
       FROM source_observations
       WHERE response_integrity_hash = 'sha256:changed-response'
@@ -109,7 +109,7 @@ describe('catalog ingestion D1 boundary', () => {
     })
 
     expect(
-      database.execute<{
+      await database.execute<{
         amount: number
         totalUnits: number
         observationId: string
@@ -144,7 +144,7 @@ describe('catalog ingestion D1 boundary', () => {
 
   it('retains identical evidence from a later run and refreshes current truth', async () => {
     const laterObservedAt = offerObservedAt + 100
-    database.execute(`
+    await database.execute(`
       INSERT INTO retailer_runs (
         id, retailer_id, origin, started_at, finished_at, status,
         fetched_count, accepted_count, rejected_count, confirmed_count,
@@ -190,7 +190,7 @@ describe('catalog ingestion D1 boundary', () => {
     })
 
     expect(
-      database.execute<{ confirmedAt: number; observations: number }>(`
+      await database.execute<{ confirmedAt: number; observations: number }>(`
         SELECT offers.confirmed_at AS confirmedAt,
           (
             SELECT COUNT(*) FROM source_observations
@@ -236,7 +236,7 @@ describe('catalog ingestion D1 boundary', () => {
     })
 
     expect(
-      database.execute<{
+      await database.execute<{
         amount: number
         availability: string
         observationId: string
@@ -338,7 +338,7 @@ describe('catalog ingestion D1 boundary', () => {
     })
 
     expect(
-      database.execute<{ availability: string; reviews: number }>(`
+      await database.execute<{ availability: string; reviews: number }>(`
         SELECT offers.availability,
           (
             SELECT COUNT(*) FROM review_cases
@@ -399,7 +399,7 @@ describe('catalog ingestion D1 boundary', () => {
     })
 
     expect(
-      database.execute<{ availability: string; observationId: string }>(`
+      await database.execute<{ availability: string; observationId: string }>(`
         SELECT availability, latest_observation_id AS observationId
         FROM offers
         WHERE id = '018f47a0-0000-7000-8000-000000000007'
@@ -424,7 +424,7 @@ describe('catalog ingestion D1 boundary', () => {
 
     expect(result).toEqual({ status: 'review', version: matchDecidedAt })
     expect(
-      database.execute<{
+      await database.execute<{
         matchStatus: string
         packageId: string | null
         availability: string
@@ -444,7 +444,7 @@ describe('catalog ingestion D1 boundary', () => {
       },
     ])
 
-    const [review] = database.execute<{
+    const [review] = await database.execute<{
       status: string
       occurrenceCount: number
       version: number
@@ -474,7 +474,7 @@ describe('catalog ingestion D1 boundary', () => {
       }),
     ).resolves.toEqual({ status: 'unchanged', version: matchDecidedAt })
 
-    const [{ occurrenceCount }] = database.execute<{
+    const [{ occurrenceCount }] = await database.execute<{
       occurrenceCount: number
     }>(`
       SELECT occurrence_count AS occurrenceCount

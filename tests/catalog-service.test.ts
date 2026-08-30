@@ -19,8 +19,8 @@ describe('catalog service D1 boundary', () => {
 
   beforeAll(async () => {
     database = await createD1TestDatabase()
-    database.executeFile(fixturePath)
-    database.execute(`
+    await database.executeFile(fixturePath)
+    await database.execute(`
       INSERT INTO offers (
         id, listing_id, source_offer_key, payable_amount_minor, currency,
         required_package_count, total_units, unit_price_numerator,
@@ -129,7 +129,7 @@ describe('catalog service D1 boundary', () => {
   })
 
   it('suppresses Offers blocked by an open Review case', async () => {
-    database.execute(`
+    await database.execute(`
       UPDATE review_cases
       SET status = 'open', blocks_publication = 1, closed_at = NULL,
         closure_outcome = NULL
@@ -141,7 +141,7 @@ describe('catalog service D1 boundary', () => {
     })
     expect(blocked.primary).toEqual([])
     expect(blocked.restricted).toEqual([])
-    database.execute(`
+    await database.execute(`
       UPDATE review_cases
       SET status = 'closed', blocks_publication = 0, closed_at = ${now},
         closure_outcome = 'Fixture approved'
@@ -150,7 +150,7 @@ describe('catalog service D1 boundary', () => {
   })
 
   it('suppresses Offers immediately when one Retailer is paused', async () => {
-    database.execute(`
+    await database.execute(`
       INSERT INTO retailers (
         id, slug, name, lifecycle, latest_run_status, latest_run_at,
         latest_successful_run_at, created_at, updated_at
@@ -229,7 +229,7 @@ describe('catalog service D1 boundary', () => {
       'second-single',
     ])
     expect(paused.restricted).toEqual([])
-    database.execute(`
+    await database.execute(`
       UPDATE retailers
       SET lifecycle = 'active'
       WHERE id = '018f47a0-0000-7000-8000-000000000001';
@@ -240,7 +240,7 @@ describe('catalog service D1 boundary', () => {
   })
 
   it('suppresses Offers when source authorization is revoked', async () => {
-    database.execute(`
+    await database.execute(`
       INSERT INTO retailer_sources (
         id, retailer_id, source_key, acquisition_method, authorization_status,
         reviewed_at, expires_at, retention_rule_reference, created_at, updated_at
@@ -260,7 +260,7 @@ describe('catalog service D1 boundary', () => {
     })
     expect(revoked.primary).toEqual([])
     expect(revoked.restricted).toEqual([])
-    database.execute(`
+    await database.execute(`
       UPDATE retailer_sources
       SET authorization_status = 'authorized'
       WHERE id = '018f47a0-0000-7000-8000-000000000002';
@@ -386,7 +386,7 @@ describe('catalog service D1 boundary', () => {
   })
 
   it('fails closed for an inactive Product', async () => {
-    database.execute(`
+    await database.execute(`
       UPDATE products
       SET lifecycle = 'inactive'
       WHERE id = '018f47a0-0000-7000-8000-000000000004'

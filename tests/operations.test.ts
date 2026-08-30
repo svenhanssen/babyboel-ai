@@ -55,7 +55,7 @@ describe('operational service D1 boundary', () => {
 
   beforeEach(async () => {
     database = await createD1TestDatabase()
-    database.executeFile(fixturePath)
+    await database.executeFile(fixturePath)
   }, 30_000)
 
   afterEach(async () => {
@@ -107,7 +107,7 @@ describe('operational service D1 boundary', () => {
 
   it('deletes expired raw evidence in a bounded, retry-safe cleanup', async () => {
     const cleanupNow = 1_795_766_400_001
-    database.execute(`
+    await database.execute(`
       INSERT INTO evidence_artifacts (
         id, retailer_source_id, r2_key, content_hash, artifact_type,
         access_class, stored_at, retention_deadline
@@ -134,14 +134,14 @@ describe('operational service D1 boundary', () => {
     ).resolves.toEqual({ selected: 0, deleted: 0, failed: 0 })
     expect(evidence.delete).toHaveBeenCalledTimes(1)
     expect(
-      database.execute<{ deletedAt: number }>(`
+      await database.execute<{ deletedAt: number }>(`
         SELECT deleted_at AS deletedAt
         FROM evidence_artifacts
         WHERE id = '018f47a0-0000-7000-8000-000000000009'
       `),
     ).toEqual([{ deletedAt: cleanupNow }])
     expect(
-      database.execute<{ deletedAt: number | null }>(`
+      await database.execute<{ deletedAt: number | null }>(`
         SELECT deleted_at AS deletedAt FROM evidence_artifacts
         WHERE id = '018f47a0-0000-7000-8000-000000000035'
       `),
@@ -155,7 +155,7 @@ describe('operational service D1 boundary', () => {
 
   it('marks only successfully deleted evidence when cleanup partially fails', async () => {
     const cleanupNow = 1_795_766_400_001
-    database.execute(`
+    await database.execute(`
       INSERT INTO evidence_artifacts (
         id, retailer_source_id, r2_key, content_hash, artifact_type,
         access_class, stored_at, retention_deadline
@@ -181,7 +181,7 @@ describe('operational service D1 boundary', () => {
       }),
     ).resolves.toEqual({ selected: 2, deleted: 1, failed: 1 })
     expect(
-      database.execute<{ r2Key: string }>(`
+      await database.execute<{ r2Key: string }>(`
         SELECT r2_key AS r2Key FROM evidence_artifacts
         WHERE deleted_at = ${cleanupNow}
       `),
@@ -189,7 +189,7 @@ describe('operational service D1 boundary', () => {
   })
 
   it('alerts only after repeated failure and deduplicates the same reason', async () => {
-    database.execute(`
+    await database.execute(`
       UPDATE retailers
       SET latest_run_status = 'failed', latest_error_code = 'SOURCE_TIMEOUT',
           latest_run_at = ${now}
@@ -214,7 +214,7 @@ describe('operational service D1 boundary', () => {
       }),
     ])
 
-    database.execute(`
+    await database.execute(`
       UPDATE retailers
       SET last_alert_reason = 'retailer_repeated_failure',
           last_alert_at = ${now}
@@ -233,7 +233,7 @@ describe('operational service D1 boundary', () => {
         now,
       ),
     ).resolves.toBe(true)
-    database.execute(`
+    await database.execute(`
       UPDATE retailers SET lifecycle = 'paused'
       WHERE id = '018f47a0-0000-7000-8000-000000000001'
     `)
@@ -247,7 +247,7 @@ describe('operational service D1 boundary', () => {
   })
 
   it('raises deduplicated backup and public-data safety alerts', async () => {
-    database.execute(`
+    await database.execute(`
       INSERT INTO system_checks (
         check_key, status, checked_at, safe_detail_code
       ) VALUES
@@ -265,7 +265,7 @@ describe('operational service D1 boundary', () => {
   })
 
   it('distinguishes blocked, expiring, and freshness-risk Retailers', async () => {
-    database.execute(`
+    await database.execute(`
       INSERT INTO retailer_sources (
         id, retailer_id, source_key, acquisition_method, authorization_status,
         reviewed_at, expires_at, retention_rule_reference, created_at, updated_at
@@ -298,7 +298,7 @@ describe('operational service D1 boundary', () => {
       'source_authorization_warning',
     )
 
-    database.execute(`
+    await database.execute(`
       UPDATE retailer_sources SET expires_at = ${now + 24 * 60 * 60 * 1_000}
       WHERE id = '018f47a0-0000-7000-8000-000000000002'
     `)
@@ -306,7 +306,7 @@ describe('operational service D1 boundary', () => {
       expect.objectContaining({ reason: 'source_authorization_expiring' }),
     ])
 
-    database.execute(`
+    await database.execute(`
       UPDATE retailer_sources SET expires_at = ${now + 365 * 24 * 60 * 60 * 1_000};
       UPDATE retailers
       SET latest_successful_run_at = ${now - 43 * 60 * 60 * 1_000}
@@ -318,7 +318,7 @@ describe('operational service D1 boundary', () => {
   })
 
   it('treats an inactive Retailer as expected pre-activation state', async () => {
-    database.execute(`
+    await database.execute(`
       UPDATE retailers SET lifecycle = 'inactive'
       WHERE id = '018f47a0-0000-7000-8000-000000000001';
       UPDATE retailer_sources SET authorization_status = 'pending'
@@ -334,7 +334,7 @@ describe('operational service D1 boundary', () => {
   })
 
   it('sends actionable email only in production and records successful delivery', async () => {
-    database.execute(`
+    await database.execute(`
       UPDATE retailers
       SET latest_run_status = 'failed', latest_error_code = 'SOURCE_TIMEOUT',
           latest_run_at = ${now}
@@ -392,7 +392,7 @@ describe('operational service D1 boundary', () => {
       ]),
     )
     expect(
-      database.execute<{ reason: string }>(`
+      await database.execute<{ reason: string }>(`
         SELECT last_alert_reason AS reason FROM retailers
         WHERE id = '018f47a0-0000-7000-8000-000000000001'
       `),
@@ -419,7 +419,7 @@ describe('operational service D1 boundary', () => {
   })
 
   it('records email failure for Admin without recursively alerting on it', async () => {
-    database.execute(`
+    await database.execute(`
       INSERT INTO system_checks (
         check_key, status, checked_at, safe_detail_code
       ) VALUES ('backup', 'failed', ${now}, 'BACKUP_FAILED')
@@ -444,7 +444,7 @@ describe('operational service D1 boundary', () => {
       expect.objectContaining({ alertsSent: 0, alertsFailed: 1 }),
     )
     expect(
-      database.execute<{ status: string; code: string }>(`
+      await database.execute<{ status: string; code: string }>(`
         SELECT status, safe_detail_code AS code FROM system_checks
         WHERE check_key = 'alert_delivery'
       `),
