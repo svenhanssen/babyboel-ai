@@ -25,6 +25,13 @@ const securityVariablesSchema = z.object({
     .refine((value) => new URL(value).origin === value, {
       message: 'Trusted origin cannot include a path',
     }),
+  CLOUDFLARE_OBSERVABILITY_URL: z
+    .url()
+    .refine((value) => new URL(value).protocol === 'https:', {
+      message: 'Cloudflare observability URL must use HTTPS',
+    }),
+  OPERATOR_EMAIL: z.email(),
+  ALERT_FROM_EMAIL: z.email(),
 })
 
 const deploymentSchema = z.object({
@@ -36,6 +43,7 @@ const deploymentSchema = z.object({
     .and(securityVariablesSchema),
   d1_databases: z.array(bindingSchema),
   r2_buckets: z.array(bindingSchema),
+  version_metadata: z.object({ binding: z.literal('CF_VERSION_METADATA') }),
 })
 
 const configSchema = z.object({

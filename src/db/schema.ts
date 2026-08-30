@@ -42,6 +42,8 @@ export const retailers = sqliteTable(
     latestRunAt: timestamp('latest_run_at'),
     latestSuccessfulRunAt: timestamp('latest_successful_run_at'),
     latestErrorCode: text('latest_error_code'),
+    lastAlertReason: text('last_alert_reason'),
+    lastAlertAt: timestamp('last_alert_at'),
     leaseToken: text('lease_token'),
     leaseExpiresAt: timestamp('lease_expires_at'),
     createdAt: requiredTimestamp('created_at'),
@@ -62,6 +64,10 @@ export const retailers = sqliteTable(
     check(
       'retailers_lease_pair_check',
       sql`(${table.leaseToken} IS NULL) = (${table.leaseExpiresAt} IS NULL)`,
+    ),
+    check(
+      'retailers_alert_pair_check',
+      sql`(${table.lastAlertReason} IS NULL) = (${table.lastAlertAt} IS NULL)`,
     ),
   ],
 )
@@ -689,6 +695,28 @@ export const auditLog = sqliteTable(
     check(
       'audit_log_json_check',
       sql`(${table.beforeJson} IS NULL OR json_valid(${table.beforeJson})) AND (${table.afterJson} IS NULL OR json_valid(${table.afterJson}))`,
+    ),
+  ],
+)
+
+export const systemChecks = sqliteTable(
+  'system_checks',
+  {
+    checkKey: text('check_key').primaryKey(),
+    status: text('status', { enum: ['ok', 'warning', 'failed'] }).notNull(),
+    checkedAt: requiredTimestamp('checked_at'),
+    safeDetailCode: text('safe_detail_code'),
+    lastAlertReason: text('last_alert_reason'),
+    lastAlertAt: timestamp('last_alert_at'),
+  },
+  (table) => [
+    check(
+      'system_checks_status_check',
+      sql`${table.status} IN ('ok', 'warning', 'failed')`,
+    ),
+    check(
+      'system_checks_alert_pair_check',
+      sql`(${table.lastAlertReason} IS NULL) = (${table.lastAlertAt} IS NULL)`,
     ),
   ],
 )

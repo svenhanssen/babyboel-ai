@@ -16,7 +16,10 @@ export type AdminContext = {
   readonly [adminContextBrand]: true
 }
 
-type ApplicationHandler = (request: Request) => Response | Promise<Response>
+type ApplicationHandler<Environment extends SecurityEnvironment> = (
+  request: Request,
+  environment: Environment,
+) => Response | Promise<Response>
 
 type SecurityDependencies = {
   verifyAssertion?: (
@@ -25,7 +28,7 @@ type SecurityDependencies = {
   ) => Promise<{ actorId: string }>
   generateRequestId?: () => string
   generateCsrfToken?: () => string
-  log?: (event: Record<string, string>) => void
+  log?: (event: Record<string, unknown>) => void
 }
 
 const adminContexts = new WeakMap<Request, AdminContext>()
@@ -223,8 +226,10 @@ const safeResponse = (
     admin,
   )
 
-export function createApplicationSecurityBoundary(
-  application: ApplicationHandler,
+export function createApplicationSecurityBoundary<
+  Environment extends SecurityEnvironment,
+>(
+  application: ApplicationHandler<Environment>,
   dependencies: SecurityDependencies = {},
 ) {
   const verifyAssertion =
@@ -236,7 +241,7 @@ export function createApplicationSecurityBoundary(
   const generateCsrfToken = dependencies.generateCsrfToken ?? randomToken
   const log = dependencies.log ?? ((event) => console.log(event))
 
-  return async (request: Request, environment: SecurityEnvironment) => {
+  return async (request: Request, environment: Environment) => {
     const pathname = new URL(request.url).pathname
     const admin = isAdminPath(pathname)
     const requestId = generateRequestId()
@@ -244,7 +249,7 @@ export function createApplicationSecurityBoundary(
     try {
       if (!admin) {
         return responseWithSecurityHeaders(
-          await application(request),
+          await application(request, environment),
           environment,
           false,
         )
@@ -317,7 +322,7 @@ export function createApplicationSecurityBoundary(
         [adminContextBrand]: true,
       })
       const response = responseWithSecurityHeaders(
-        await application(applicationRequest),
+        await application(applicationRequest, environment),
         environment,
         true,
       )
@@ -335,9 +340,11 @@ export function createApplicationSecurityBoundary(
       return response
     } catch {
       log({
-        area: admin ? 'admin' : 'public',
-        event: 'request_failed',
+        event: 'operational_error',
+        outcome: 'failure',
+        environment: environment.APP_ENV,
         requestId,
+        errorCode: admin ? 'ADMIN_REQUEST_FAILED' : 'PUBLIC_REQUEST_FAILED',
       })
       return safeResponse(500, 'Internal Server Error', environment, admin)
     }

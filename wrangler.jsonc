@@ -21,6 +21,9 @@
     "ACCESS_AUD": "local-unused",
     "ACCESS_OPERATOR_SUBJECT": "local-operator",
     "TRUSTED_ORIGIN": "http://localhost:3000",
+    "CLOUDFLARE_OBSERVABILITY_URL": "https://dash.cloudflare.com/",
+    "OPERATOR_EMAIL": "operator@local.invalid",
+    "ALERT_FROM_EMAIL": "alerts@local.invalid",
   },
   "d1_databases": [
     {
@@ -41,6 +44,9 @@
       "name": "OPS_EMAIL",
     },
   ],
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA",
+  },
   "triggers": {
     "crons": ["17 0,6,12,18 * * *"],
   },
@@ -54,6 +60,9 @@
         "ACCESS_AUD": "replace-preview-access-audience",
         "ACCESS_OPERATOR_SUBJECT": "replace-operator-subject",
         "TRUSTED_ORIGIN": "https://replace-preview.invalid",
+        "CLOUDFLARE_OBSERVABILITY_URL": "https://dash.cloudflare.com/",
+        "OPERATOR_EMAIL": "replace-operator@example.com",
+        "ALERT_FROM_EMAIL": "replace-alerts@example.com",
       },
       "d1_databases": [
         {
@@ -74,6 +83,9 @@
           "name": "OPS_EMAIL",
         },
       ],
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
       "triggers": {
         "crons": [],
       },
@@ -87,6 +99,9 @@
         "ACCESS_AUD": "replace-production-access-audience",
         "ACCESS_OPERATOR_SUBJECT": "replace-operator-subject",
         "TRUSTED_ORIGIN": "https://replace-production.invalid",
+        "CLOUDFLARE_OBSERVABILITY_URL": "https://dash.cloudflare.com/",
+        "OPERATOR_EMAIL": "replace-operator@example.com",
+        "ALERT_FROM_EMAIL": "replace-alerts@example.com",
       },
       "d1_databases": [
         {
@@ -107,6 +122,9 @@
           "name": "OPS_EMAIL",
         },
       ],
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
       "triggers": {
         "crons": ["17 0,6,12,18 * * *"],
       },
