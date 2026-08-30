@@ -55,6 +55,7 @@
     "globals": "latest",
     "jsdom": "^30.0.1",
     "jsonc-parser": "^3.3.1",
+    "miniflare": "3.20250718.3",
     "prettier": "latest",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",

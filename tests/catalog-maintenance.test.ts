@@ -51,7 +51,7 @@ describe('catalog maintenance D1 boundary', () => {
 
   beforeAll(async () => {
     database = await createD1TestDatabase()
-    database.executeFile(fixturePath)
+    await database.executeFile(fixturePath)
     actor = await createActor()
   }, 30_000)
 
@@ -82,7 +82,7 @@ describe('catalog maintenance D1 boundary', () => {
     ).resolves.toEqual({ status: 'updated', version: changedAt })
 
     expect(
-      database.execute<{
+      await database.execute<{
         amount: number
         numerator: number
         denominator: number
@@ -137,7 +137,7 @@ describe('catalog maintenance D1 boundary', () => {
       }),
     ).rejects.toThrow(/UNIQUE constraint failed/)
 
-    const [rolledBack] = database.execute<{
+    const [rolledBack] = await database.execute<{
       amount: number
       version: number
     }>(`
@@ -147,7 +147,7 @@ describe('catalog maintenance D1 boundary', () => {
     `)
     expect(rolledBack).toEqual({ amount: 1599, version: changedAt })
 
-    const [{ count }] = database.execute<{ count: number }>(`
+    const [{ count }] = await database.execute<{ count: number }>(`
       SELECT COUNT(*) AS count
       FROM audit_log
       WHERE action = 'offer.correct'
@@ -156,7 +156,7 @@ describe('catalog maintenance D1 boundary', () => {
   }, 60_000)
 
   it('reassigns a Listing and non-destructively merges a duplicate Product', async () => {
-    database.execute(`
+    await database.execute(`
       INSERT INTO products (
         id, brand_id, category_code, line, variant, normalized_size_code,
         identity_key, slug, lifecycle, created_at, updated_at
@@ -194,7 +194,7 @@ describe('catalog maintenance D1 boundary', () => {
     ).resolves.toEqual({ status: 'updated', version: changedAt })
 
     expect(
-      database.execute<{ totalUnits: number; denominator: number }>(`
+      await database.execute<{ totalUnits: number; denominator: number }>(`
         SELECT total_units AS totalUnits,
           unit_price_denominator AS denominator
         FROM offers
@@ -224,7 +224,7 @@ describe('catalog maintenance D1 boundary', () => {
     })
 
     expect(
-      database.execute<{
+      await database.execute<{
         lifecycle: string
         mergedInto: string
         packageProductId: string
@@ -269,7 +269,7 @@ describe('catalog maintenance D1 boundary', () => {
     ).resolves.toEqual({ status: 'updated', version: changedAt + 2 })
 
     expect(
-      database.execute<{
+      await database.execute<{
         lifecycle: string
         mergedInto: string | null
         packageProductId: string
