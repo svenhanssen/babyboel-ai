@@ -97,6 +97,65 @@ export function assertTrustedAdminContext(context: AdminContext): void {
   }
 }
 
+export async function authenticateAdminServerRequest(
+  request: Request,
+  environment: SecurityEnvironment,
+): Promise<AdminContext> {
+  const existing = adminContexts.get(request)
+  if (existing) return existing
+
+  let actorId: string
+  if (environment.APP_ENV === 'local') {
+    if (request.headers.get('X-Babyboel-Local-Actor') !== 'local-operator') {
+      throw new Error('ACCESS_DENIED')
+    }
+    actorId = 'local-operator'
+  } else {
+    const assertion = request.headers.get('Cf-Access-Jwt-Assertion')
+    if (!assertion) throw new Error('ACCESS_DENIED')
+    actorId = (await verifyAccessAssertion(assertion, environment)).actorId
+  }
+
+  if (request.method === 'POST') {
+    const declaredLength = Number(request.headers.get('content-length'))
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > maximumAdminBodyBytes
+    ) {
+      throw new Error('PAYLOAD_TOO_LARGE')
+    }
+    const mediaType = request.headers
+      .get('content-type')
+      ?.split(';', 1)[0]
+      ?.trim()
+      .toLowerCase()
+    if (
+      mediaType !== 'application/json' &&
+      mediaType !== 'application/x-www-form-urlencoded'
+    ) {
+      throw new Error('UNSUPPORTED_MEDIA_TYPE')
+    }
+    const cookieName = csrfCookieName(environment)
+    if (
+      request.headers.get('origin') !== environment.TRUSTED_ORIGIN ||
+      !tokensMatch(
+        readCookie(request, cookieName),
+        request.headers.get('x-babyboel-csrf') ?? undefined,
+      )
+    ) {
+      throw new Error('CSRF_DENIED')
+    }
+  }
+
+  const context: AdminContext = {
+    actorId,
+    requestId: request.headers.get('x-request-id') ?? crypto.randomUUID(),
+    [adminContextBrand]: true,
+  }
+  adminContexts.set(request, context)
+  return context
+}
+
 const isAdminPath = (pathname: string) =>
   pathname === '/admin' || pathname.startsWith('/admin/')
 

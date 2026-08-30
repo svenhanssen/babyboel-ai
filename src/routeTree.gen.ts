@@ -11,6 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminCatalogRouteImport } from './routes/admin.catalog'
+import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
+import { Route as AdminReviewsIndexRouteImport } from './routes/admin.reviews.index'
+import { Route as AdminReviewsCaseIdRouteImport } from './routes/admin.reviews.$caseId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +27,89 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminCatalogRoute = AdminCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReviewsRoute = AdminReviewsRouteImport.update({
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReviewsIndexRoute = AdminReviewsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminReviewsRoute,
+} as any)
+const AdminReviewsCaseIdRoute = AdminReviewsCaseIdRouteImport.update({
+  id: '/$caseId',
+  path: '/$caseId',
+  getParentRoute: () => AdminReviewsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/admin/catalog': typeof AdminCatalogRoute
+  '/admin/reviews': typeof AdminReviewsRouteWithChildren
+  '/admin/': typeof AdminIndexRoute
+  '/admin/reviews/$caseId': typeof AdminReviewsCaseIdRoute
+  '/admin/reviews/': typeof AdminReviewsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/admin/catalog': typeof AdminCatalogRoute
+  '/admin': typeof AdminIndexRoute
+  '/admin/reviews/$caseId': typeof AdminReviewsCaseIdRoute
+  '/admin/reviews': typeof AdminReviewsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/admin/catalog': typeof AdminCatalogRoute
+  '/admin/reviews': typeof AdminReviewsRouteWithChildren
+  '/admin/': typeof AdminIndexRoute
+  '/admin/reviews/$caseId': typeof AdminReviewsCaseIdRoute
+  '/admin/reviews/': typeof AdminReviewsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/admin/catalog'
+    | '/admin/reviews'
+    | '/admin/'
+    | '/admin/reviews/$caseId'
+    | '/admin/reviews/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin'
-  id: '__root__' | '/' | '/admin'
+  to:
+    | '/'
+    | '/admin/catalog'
+    | '/admin'
+    | '/admin/reviews/$caseId'
+    | '/admin/reviews'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/admin/catalog'
+    | '/admin/reviews'
+    | '/admin/'
+    | '/admin/reviews/$caseId'
+    | '/admin/reviews/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
+  AdminRoute: typeof AdminRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +128,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/catalog': {
+      id: '/admin/catalog'
+      path: '/catalog'
+      fullPath: '/admin/catalog'
+      preLoaderRoute: typeof AdminCatalogRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reviews': {
+      id: '/admin/reviews'
+      path: '/reviews'
+      fullPath: '/admin/reviews'
+      preLoaderRoute: typeof AdminReviewsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reviews/': {
+      id: '/admin/reviews/'
+      path: '/'
+      fullPath: '/admin/reviews/'
+      preLoaderRoute: typeof AdminReviewsIndexRouteImport
+      parentRoute: typeof AdminReviewsRoute
+    }
+    '/admin/reviews/$caseId': {
+      id: '/admin/reviews/$caseId'
+      path: '/$caseId'
+      fullPath: '/admin/reviews/$caseId'
+      preLoaderRoute: typeof AdminReviewsCaseIdRouteImport
+      parentRoute: typeof AdminReviewsRoute
+    }
   }
 }
 
+interface AdminReviewsRouteChildren {
+  AdminReviewsCaseIdRoute: typeof AdminReviewsCaseIdRoute
+  AdminReviewsIndexRoute: typeof AdminReviewsIndexRoute
+}
+
+const AdminReviewsRouteChildren: AdminReviewsRouteChildren = {
+  AdminReviewsCaseIdRoute: AdminReviewsCaseIdRoute,
+  AdminReviewsIndexRoute: AdminReviewsIndexRoute,
+}
+
+const AdminReviewsRouteWithChildren = AdminReviewsRoute._addFileChildren(
+  AdminReviewsRouteChildren,
+)
+
+interface AdminRouteChildren {
+  AdminCatalogRoute: typeof AdminCatalogRoute
+  AdminReviewsRoute: typeof AdminReviewsRouteWithChildren
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminCatalogRoute: AdminCatalogRoute,
+  AdminReviewsRoute: AdminReviewsRouteWithChildren,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
+  AdminRoute: AdminRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
