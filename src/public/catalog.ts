@@ -1,8 +1,9 @@
 import type { CategoryCode, NormalizedSizeCode } from '../db/domain'
+import { rankCurrentOffers, type RankedOffer } from '../catalog/domain'
+import { requireVerifiedOutboundDestination } from '../security/outbound'
 
 export const publicFixtureNow = Date.parse('2026-09-11T10:00:00.000Z')
 export const publicPageSize = 24
-const freshnessWindow = 48 * 60 * 60 * 1_000
 
 export interface PublicCategory {
   code: CategoryCode
@@ -42,17 +43,10 @@ export const publicCategoryBySlug = Object.fromEntries(
 
 // Deliberately flattened, read-only presentation data. Product, Package,
 // Listing, and Offer remain separate in the authoritative catalog model.
-export interface PublicOfferView {
+export interface PublicOfferView extends RankedOffer {
   id: string
   sourceOfferKey: string
-  retailerName: string
   packageUnitCount: number
-  requiredPackageCount: number
-  totalUnits: number
-  payableAmountMinor: number
-  eligibility: 'universal' | 'restricted'
-  conditionText: string | null
-  confirmedAt: number
   outboundDestination: string
 }
 
@@ -110,18 +104,30 @@ function offer(
   conditionText: string | null = null,
   hoursAgo = 3,
 ): PublicOfferView {
+  const id = `fixture-${sourceOfferKey}`
+  const confirmationTime = confirmedAt(hoursAgo)
+  const outboundDestination = `https://retailer.example/${sourceOfferKey}`
   return {
-    id: `fixture-${sourceOfferKey}`,
+    id,
+    offerId: id,
+    listingId: `fixture-listing-${sourceOfferKey}`,
+    retailerId: `fixture-retailer-${retailerName.toLowerCase()}`,
     sourceOfferKey,
     retailerName,
+    listingConfirmedAt: confirmationTime,
     packageUnitCount,
     requiredPackageCount,
     totalUnits: packageUnitCount * requiredPackageCount,
     payableAmountMinor,
     eligibility,
     conditionText,
-    confirmedAt: confirmedAt(hoursAgo),
-    outboundDestination: `https://retailer.example/${sourceOfferKey}`,
+    availability: 'available',
+    confirmedAt: confirmationTime,
+    declaredExpiresAt: null,
+    outboundDestination: requireVerifiedOutboundDestination(
+      outboundDestination,
+      outboundDestination,
+    ),
   }
 }
 
@@ -272,31 +278,11 @@ function compareOffers(left: PublicOfferView, right: PublicOfferView) {
   )
 }
 
-function isCurrent(offer: PublicOfferView, now: number) {
-  const age = now - offer.confirmedAt
-  return age >= 0 && age <= freshnessWindow
-}
-
 function rankedOffers(fixture: PublicProductFixture, now: number) {
   if (fixture.degradedRetailers?.length) {
     return { primary: [], restricted: [], bestWithoutMinimum: null }
   }
-  const current = fixture.offers.filter((candidate) =>
-    isCurrent(candidate, now),
-  )
-  const primary = current
-    .filter(({ eligibility }) => eligibility === 'universal')
-    .sort(compareOffers)
-  const restricted = current
-    .filter(({ eligibility }) => eligibility === 'restricted')
-    .sort(compareOffers)
-  return {
-    primary,
-    restricted,
-    bestWithoutMinimum:
-      primary.find(({ requiredPackageCount }) => requiredPackageCount === 1) ??
-      null,
-  }
+  return rankCurrentOffers(fixture.offers, now)
 }
 
 function summarize(
