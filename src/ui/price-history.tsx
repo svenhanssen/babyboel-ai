@@ -1,6 +1,7 @@
 export interface PriceHistoryPoint {
   observedOn: string
   priceCents: number | null
+  wonByMultiBuy?: boolean
 }
 
 const chartWidth = 600
@@ -121,6 +122,7 @@ export function PriceHistory({ points }: { points: PriceHistoryPoint[] }) {
             <tr>
               <th scope="col">Datum</th>
               <th scope="col">Waargenomen prijs</th>
+              <th scope="col">Basis</th>
             </tr>
           </thead>
           <tbody>
@@ -135,6 +137,13 @@ export function PriceHistory({ points }: { points: PriceHistoryPoint[] }) {
                   {point.priceCents === null
                     ? 'Geen waarneming'
                     : formatPrice(point.priceCents)}
+                </td>
+                <td>
+                  {point.priceCents === null
+                    ? 'Geen actuele Offer'
+                    : point.wonByMultiBuy
+                      ? 'Laagste universele stukprijs met meerdere verpakkingen'
+                      : 'Laagste universele stukprijs zonder minimumafname'}
                 </td>
               </tr>
             ))}

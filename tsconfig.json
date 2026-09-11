@@ -6,6 +6,7 @@
     "tests/**/*.ts",
     "tests/**/*.tsx",
     "drizzle.config.ts",
+    "playwright.config.ts",
     "vite.config.ts",
     "vitest.config.ts"
   ],
