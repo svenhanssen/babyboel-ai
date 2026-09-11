@@ -2,6 +2,7 @@ import { Moon, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { trustPageLinks } from '../public/trust-page'
 import { isTheme, themeStorageKey } from './theme'
 import type { Theme } from './theme'
 
@@ -95,6 +96,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           <a aria-label="Babyboel, startpagina" className="wordmark" href="/">
             babyboel
           </a>
+          <div className="site-nav__categories">
+            <a className="nav-link" href="/luiers">
+              Luiers
+            </a>
+            <a className="nav-link" href="/luierbroekjes">
+              Luierbroekjes
+            </a>
+            <a className="nav-link" href="/billendoekjes">
+              Billendoekjes
+            </a>
+          </div>
           <div className="site-nav__actions">
             <a className="nav-link" href="/admin">
               Admin
@@ -106,6 +118,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       {children}
       <footer className="site-footer">
         <p>Helder vergelijken op basis van actuele, controleerbare gegevens.</p>
+        <nav aria-label="Informatie">
+          {trustPageLinks.map((link) => (
+            <a href={link.href} key={link.href}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
       </footer>
     </>
   )

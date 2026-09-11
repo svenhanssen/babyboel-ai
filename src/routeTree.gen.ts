@@ -11,9 +11,23 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as BillendoekjesRouteImport } from './routes/billendoekjes'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DekkingRouteImport } from './routes/dekking'
+import { Route as LuierbroekjesRouteImport } from './routes/luierbroekjes'
+import { Route as LuiersRouteImport } from './routes/luiers'
+import { Route as MethodeRouteImport } from './routes/methode'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as VerdienmodelRouteImport } from './routes/verdienmodel'
+import { Route as VindenRouteImport } from './routes/vinden'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminCatalogRouteImport } from './routes/admin.catalog'
 import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
+import { Route as LuierbroekjesIndexRouteImport } from './routes/luierbroekjes.index'
+import { Route as LuierbroekjesMaatChar123sizeChar125RouteImport } from './routes/luierbroekjes.maat-{$size}'
+import { Route as LuiersIndexRouteImport } from './routes/luiers.index'
+import { Route as LuiersMaatChar123sizeChar125RouteImport } from './routes/luiers.maat-{$size}'
+import { Route as ProductenProductKeyRouteImport } from './routes/producten.$productKey'
 import { Route as AdminReviewsIndexRouteImport } from './routes/admin.reviews.index'
 import { Route as AdminReviewsCaseIdRouteImport } from './routes/admin.reviews.$caseId'
 
@@ -25,6 +39,51 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BillendoekjesRoute = BillendoekjesRouteImport.update({
+  id: '/billendoekjes',
+  path: '/billendoekjes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DekkingRoute = DekkingRouteImport.update({
+  id: '/dekking',
+  path: '/dekking',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LuierbroekjesRoute = LuierbroekjesRouteImport.update({
+  id: '/luierbroekjes',
+  path: '/luierbroekjes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LuiersRoute = LuiersRouteImport.update({
+  id: '/luiers',
+  path: '/luiers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MethodeRoute = MethodeRouteImport.update({
+  id: '/methode',
+  path: '/methode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerdienmodelRoute = VerdienmodelRouteImport.update({
+  id: '/verdienmodel',
+  path: '/verdienmodel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VindenRoute = VindenRouteImport.update({
+  id: '/vinden',
+  path: '/vinden',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -42,6 +101,33 @@ const AdminReviewsRoute = AdminReviewsRouteImport.update({
   path: '/reviews',
   getParentRoute: () => AdminRoute,
 } as any)
+const LuierbroekjesIndexRoute = LuierbroekjesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LuierbroekjesRoute,
+} as any)
+const LuierbroekjesMaatChar123sizeChar125Route =
+  LuierbroekjesMaatChar123sizeChar125RouteImport.update({
+    id: '/maat-{$size}',
+    path: '/maat-{$size}',
+    getParentRoute: () => LuierbroekjesRoute,
+  } as any)
+const LuiersIndexRoute = LuiersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LuiersRoute,
+} as any)
+const LuiersMaatChar123sizeChar125Route =
+  LuiersMaatChar123sizeChar125RouteImport.update({
+    id: '/maat-{$size}',
+    path: '/maat-{$size}',
+    getParentRoute: () => LuiersRoute,
+  } as any)
+const ProductenProductKeyRoute = ProductenProductKeyRouteImport.update({
+  id: '/producten/$productKey',
+  path: '/producten/$productKey',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminReviewsIndexRoute = AdminReviewsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -56,16 +142,42 @@ const AdminReviewsCaseIdRoute = AdminReviewsCaseIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/billendoekjes': typeof BillendoekjesRoute
+  '/contact': typeof ContactRoute
+  '/dekking': typeof DekkingRoute
+  '/luierbroekjes': typeof LuierbroekjesRouteWithChildren
+  '/luiers': typeof LuiersRouteWithChildren
+  '/methode': typeof MethodeRoute
+  '/privacy': typeof PrivacyRoute
+  '/verdienmodel': typeof VerdienmodelRoute
+  '/vinden': typeof VindenRoute
   '/admin/catalog': typeof AdminCatalogRoute
   '/admin/reviews': typeof AdminReviewsRouteWithChildren
+  '/luierbroekjes/maat-{$size}': typeof LuierbroekjesMaatChar123sizeChar125Route
+  '/luiers/maat-{$size}': typeof LuiersMaatChar123sizeChar125Route
+  '/producten/$productKey': typeof ProductenProductKeyRoute
   '/admin/': typeof AdminIndexRoute
+  '/luierbroekjes/': typeof LuierbroekjesIndexRoute
+  '/luiers/': typeof LuiersIndexRoute
   '/admin/reviews/$caseId': typeof AdminReviewsCaseIdRoute
   '/admin/reviews/': typeof AdminReviewsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/billendoekjes': typeof BillendoekjesRoute
+  '/contact': typeof ContactRoute
+  '/dekking': typeof DekkingRoute
+  '/methode': typeof MethodeRoute
+  '/privacy': typeof PrivacyRoute
+  '/verdienmodel': typeof VerdienmodelRoute
+  '/vinden': typeof VindenRoute
   '/admin/catalog': typeof AdminCatalogRoute
+  '/luierbroekjes/maat-{$size}': typeof LuierbroekjesMaatChar123sizeChar125Route
+  '/luiers/maat-{$size}': typeof LuiersMaatChar123sizeChar125Route
+  '/producten/$productKey': typeof ProductenProductKeyRoute
   '/admin': typeof AdminIndexRoute
+  '/luierbroekjes': typeof LuierbroekjesIndexRoute
+  '/luiers': typeof LuiersIndexRoute
   '/admin/reviews/$caseId': typeof AdminReviewsCaseIdRoute
   '/admin/reviews': typeof AdminReviewsIndexRoute
 }
@@ -73,9 +185,23 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/billendoekjes': typeof BillendoekjesRoute
+  '/contact': typeof ContactRoute
+  '/dekking': typeof DekkingRoute
+  '/luierbroekjes': typeof LuierbroekjesRouteWithChildren
+  '/luiers': typeof LuiersRouteWithChildren
+  '/methode': typeof MethodeRoute
+  '/privacy': typeof PrivacyRoute
+  '/verdienmodel': typeof VerdienmodelRoute
+  '/vinden': typeof VindenRoute
   '/admin/catalog': typeof AdminCatalogRoute
   '/admin/reviews': typeof AdminReviewsRouteWithChildren
+  '/luierbroekjes/maat-{$size}': typeof LuierbroekjesMaatChar123sizeChar125Route
+  '/luiers/maat-{$size}': typeof LuiersMaatChar123sizeChar125Route
+  '/producten/$productKey': typeof ProductenProductKeyRoute
   '/admin/': typeof AdminIndexRoute
+  '/luierbroekjes/': typeof LuierbroekjesIndexRoute
+  '/luiers/': typeof LuiersIndexRoute
   '/admin/reviews/$caseId': typeof AdminReviewsCaseIdRoute
   '/admin/reviews/': typeof AdminReviewsIndexRoute
 }
@@ -84,25 +210,65 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/billendoekjes'
+    | '/contact'
+    | '/dekking'
+    | '/luierbroekjes'
+    | '/luiers'
+    | '/methode'
+    | '/privacy'
+    | '/verdienmodel'
+    | '/vinden'
     | '/admin/catalog'
     | '/admin/reviews'
+    | '/luierbroekjes/maat-{$size}'
+    | '/luiers/maat-{$size}'
+    | '/producten/$productKey'
     | '/admin/'
+    | '/luierbroekjes/'
+    | '/luiers/'
     | '/admin/reviews/$caseId'
     | '/admin/reviews/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/billendoekjes'
+    | '/contact'
+    | '/dekking'
+    | '/methode'
+    | '/privacy'
+    | '/verdienmodel'
+    | '/vinden'
     | '/admin/catalog'
+    | '/luierbroekjes/maat-{$size}'
+    | '/luiers/maat-{$size}'
+    | '/producten/$productKey'
     | '/admin'
+    | '/luierbroekjes'
+    | '/luiers'
     | '/admin/reviews/$caseId'
     | '/admin/reviews'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/billendoekjes'
+    | '/contact'
+    | '/dekking'
+    | '/luierbroekjes'
+    | '/luiers'
+    | '/methode'
+    | '/privacy'
+    | '/verdienmodel'
+    | '/vinden'
     | '/admin/catalog'
     | '/admin/reviews'
+    | '/luierbroekjes/maat-{$size}'
+    | '/luiers/maat-{$size}'
+    | '/producten/$productKey'
     | '/admin/'
+    | '/luierbroekjes/'
+    | '/luiers/'
     | '/admin/reviews/$caseId'
     | '/admin/reviews/'
   fileRoutesById: FileRoutesById
@@ -110,6 +276,16 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  BillendoekjesRoute: typeof BillendoekjesRoute
+  ContactRoute: typeof ContactRoute
+  DekkingRoute: typeof DekkingRoute
+  LuierbroekjesRoute: typeof LuierbroekjesRouteWithChildren
+  LuiersRoute: typeof LuiersRouteWithChildren
+  MethodeRoute: typeof MethodeRoute
+  PrivacyRoute: typeof PrivacyRoute
+  VerdienmodelRoute: typeof VerdienmodelRoute
+  VindenRoute: typeof VindenRoute
+  ProductenProductKeyRoute: typeof ProductenProductKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -126,6 +302,69 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/billendoekjes': {
+      id: '/billendoekjes'
+      path: '/billendoekjes'
+      fullPath: '/billendoekjes'
+      preLoaderRoute: typeof BillendoekjesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dekking': {
+      id: '/dekking'
+      path: '/dekking'
+      fullPath: '/dekking'
+      preLoaderRoute: typeof DekkingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/luierbroekjes': {
+      id: '/luierbroekjes'
+      path: '/luierbroekjes'
+      fullPath: '/luierbroekjes'
+      preLoaderRoute: typeof LuierbroekjesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/luiers': {
+      id: '/luiers'
+      path: '/luiers'
+      fullPath: '/luiers'
+      preLoaderRoute: typeof LuiersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/methode': {
+      id: '/methode'
+      path: '/methode'
+      fullPath: '/methode'
+      preLoaderRoute: typeof MethodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verdienmodel': {
+      id: '/verdienmodel'
+      path: '/verdienmodel'
+      fullPath: '/verdienmodel'
+      preLoaderRoute: typeof VerdienmodelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vinden': {
+      id: '/vinden'
+      path: '/vinden'
+      fullPath: '/vinden'
+      preLoaderRoute: typeof VindenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -148,6 +387,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/reviews'
       preLoaderRoute: typeof AdminReviewsRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/luierbroekjes/': {
+      id: '/luierbroekjes/'
+      path: '/'
+      fullPath: '/luierbroekjes/'
+      preLoaderRoute: typeof LuierbroekjesIndexRouteImport
+      parentRoute: typeof LuierbroekjesRoute
+    }
+    '/luierbroekjes/maat-{$size}': {
+      id: '/luierbroekjes/maat-{$size}'
+      path: '/maat-{$size}'
+      fullPath: '/luierbroekjes/maat-{$size}'
+      preLoaderRoute: typeof LuierbroekjesMaatChar123sizeChar125RouteImport
+      parentRoute: typeof LuierbroekjesRoute
+    }
+    '/luiers/': {
+      id: '/luiers/'
+      path: '/'
+      fullPath: '/luiers/'
+      preLoaderRoute: typeof LuiersIndexRouteImport
+      parentRoute: typeof LuiersRoute
+    }
+    '/luiers/maat-{$size}': {
+      id: '/luiers/maat-{$size}'
+      path: '/maat-{$size}'
+      fullPath: '/luiers/maat-{$size}'
+      preLoaderRoute: typeof LuiersMaatChar123sizeChar125RouteImport
+      parentRoute: typeof LuiersRoute
+    }
+    '/producten/$productKey': {
+      id: '/producten/$productKey'
+      path: '/producten/$productKey'
+      fullPath: '/producten/$productKey'
+      preLoaderRoute: typeof ProductenProductKeyRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/reviews/': {
       id: '/admin/reviews/'
@@ -194,9 +468,47 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface LuierbroekjesRouteChildren {
+  LuierbroekjesMaatChar123sizeChar125Route: typeof LuierbroekjesMaatChar123sizeChar125Route
+  LuierbroekjesIndexRoute: typeof LuierbroekjesIndexRoute
+}
+
+const LuierbroekjesRouteChildren: LuierbroekjesRouteChildren = {
+  LuierbroekjesMaatChar123sizeChar125Route:
+    LuierbroekjesMaatChar123sizeChar125Route,
+  LuierbroekjesIndexRoute: LuierbroekjesIndexRoute,
+}
+
+const LuierbroekjesRouteWithChildren = LuierbroekjesRoute._addFileChildren(
+  LuierbroekjesRouteChildren,
+)
+
+interface LuiersRouteChildren {
+  LuiersMaatChar123sizeChar125Route: typeof LuiersMaatChar123sizeChar125Route
+  LuiersIndexRoute: typeof LuiersIndexRoute
+}
+
+const LuiersRouteChildren: LuiersRouteChildren = {
+  LuiersMaatChar123sizeChar125Route: LuiersMaatChar123sizeChar125Route,
+  LuiersIndexRoute: LuiersIndexRoute,
+}
+
+const LuiersRouteWithChildren =
+  LuiersRoute._addFileChildren(LuiersRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  BillendoekjesRoute: BillendoekjesRoute,
+  ContactRoute: ContactRoute,
+  DekkingRoute: DekkingRoute,
+  LuierbroekjesRoute: LuierbroekjesRouteWithChildren,
+  LuiersRoute: LuiersRouteWithChildren,
+  MethodeRoute: MethodeRoute,
+  PrivacyRoute: PrivacyRoute,
+  VerdienmodelRoute: VerdienmodelRoute,
+  VindenRoute: VindenRoute,
+  ProductenProductKeyRoute: ProductenProductKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
