@@ -1,6 +1,7 @@
 import { parseEnvironment } from './environment'
 import { emitOperationalEvent } from './operations/events'
 import { runOperationalMaintenance } from './operations/service'
+import { runScheduledRetailers } from './retailers/runner'
 
 export type ScheduledRun = {
   environment: 'local' | 'preview' | 'production'
@@ -30,6 +31,24 @@ export async function runScheduledAcquisition(
     scheduledTime: controller.scheduledTime,
   } satisfies ScheduledRun
 
+  const now = Date.now()
+  try {
+    await runScheduledRetailers({
+      database: env.DB,
+      now,
+      origin: 'scheduled',
+      mode: environment.ACQUISITION_MODE,
+      environment: environment.APP_ENV,
+    })
+  } catch (error) {
+    emitOperationalEvent({
+      event: 'operational_error',
+      outcome: 'failure',
+      environment: run.environment,
+      errorCode: 'RETAILER_ACQUISITION_FAILED',
+    })
+    throw error
+  }
   try {
     await runOperationalMaintenance(
       {
@@ -40,7 +59,7 @@ export async function runScheduledAcquisition(
         ALERT_FROM_EMAIL: env.ALERT_FROM_EMAIL,
         sendEmail: (message) => env.OPS_EMAIL.send(message),
       },
-      Date.now(),
+      now,
     )
   } catch (error) {
     emitOperationalEvent({
