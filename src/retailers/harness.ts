@@ -19,7 +19,7 @@ export function createFixtureFetch(
           : input.url
     const fixture = feeds[url]
     if (!fixture) {
-      throw new SourceFetchError('SOURCE_HOST_REJECTED')
+      throw new SourceFetchError('SOURCE_FIXTURE_MISSING')
     }
     if (fixture.delayMs && fixture.delayMs > 0) {
       await new Promise<void>((resolve, reject) => {
@@ -109,8 +109,19 @@ export const syntheticFeeds = {
       items: [{ ...syntheticListing, priceMinor: 1_799 }],
     }),
   },
+  invalidQuantity: {
+    body: feedBody({
+      items: [{ ...syntheticListing, sku: 'SKU-BAD-Q', unitCount: 0 }],
+    }),
+  },
   missingListing: {
     body: feedBody({ items: [extraSyntheticListing] }),
+  },
+  incompleteOmit: {
+    body: feedBody({
+      complete: false,
+      items: [extraSyntheticListing],
+    }),
   },
   stableRejected: {
     body: feedBody({
@@ -134,5 +145,9 @@ export const syntheticFeeds = {
   unauthorized: {
     status: 401,
     body: 'Bearer secret-token',
+  },
+  timeout: {
+    body: '{"items":[]}',
+    delayMs: 80,
   },
 } satisfies Record<string, FixtureFeed>

@@ -6,7 +6,7 @@ const timestampSchema = z.number().int().nonnegative()
 const issueCodeSchema = z.string().min(1).max(100)
 const sha256Schema = z.string().regex(/^sha256:[0-9a-f]{64}$/)
 
-const httpsDestinationSchema = z
+const outboundDestinationSchema = z
   .url()
   .max(2_000)
   .refine((value) => {
@@ -38,13 +38,6 @@ export const retailerAdapterOfferSchema = z
         path: ['conditionText'],
       })
     }
-    if (offer.declaredExpiresAt !== null && offer.declaredExpiresAt <= 0) {
-      context.addIssue({
-        code: 'custom',
-        message: 'OFFER_EXPIRY_INVALID',
-        path: ['declaredExpiresAt'],
-      })
-    }
   })
 
 export const retailerAdapterSnapshotSchema = z.object({
@@ -52,12 +45,12 @@ export const retailerAdapterSnapshotSchema = z.object({
   sellerKey: z.string().min(1).max(200),
   channel: z.literal('nationwide_online'),
   sourceTitle: z.string().min(1).max(500),
-  outboundDestination: httpsDestinationSchema,
+  outboundDestination: outboundDestinationSchema.nullable(),
   availability: z.enum(['available', 'unavailable', 'unknown']),
   observedAt: timestampSchema,
   rawFacts: z.record(z.string(), z.unknown()),
   normalizedFacts: matchFactsSchema,
-  extractionMethod: z.enum(['api', 'json_ld', 'metadata', 'selector']),
+  extractionMethod: z.literal('api'),
   outcome: z.enum(['success', 'incomplete', 'invalid']),
   issueCodes: z.array(issueCodeSchema).max(100),
   affectedFields: z.array(z.string().min(1).max(100)).max(100),
@@ -105,6 +98,13 @@ export const retailerAdapterResultSchema = z
         })
       }
       if (snapshot.outcome === 'success') {
+        if (snapshot.outboundDestination === null) {
+          context.addIssue({
+            code: 'custom',
+            message: 'OUTBOUND_DESTINATION_REQUIRED',
+            path: ['snapshots', index, 'outboundDestination'],
+          })
+        }
         for (const [offerIndex, offer] of snapshot.offers.entries()) {
           if (snapshot.normalizedFacts.unitCount === null) {
             context.addIssue({

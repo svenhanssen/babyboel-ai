@@ -56,7 +56,7 @@ const snapshotFromRow = (input: {
   const sku = textField(input.row.sku).trim()
   if (sku === '') return null
   const title = textField(input.row.title, sku)
-  const destination =
+  const outboundDestination =
     typeof input.row.url === 'string' && input.row.url.startsWith('https://')
       ? input.row.url
       : null
@@ -98,10 +98,10 @@ const snapshotFromRow = (input: {
   }
   if (unitCount === null) issues.push('quantity_invalid')
   if (priceMinor === null) issues.push('price_invalid')
-  if (destination === null) issues.push('destination_invalid')
+  if (outboundDestination === null) issues.push('outbound_destination_invalid')
   const success =
     issues.length === 0 &&
-    destination !== null &&
+    outboundDestination !== null &&
     categoryCode !== null &&
     unitCount !== null
   const offers =
@@ -125,9 +125,7 @@ const snapshotFromRow = (input: {
     sellerKey: input.sellerKey,
     channel: 'nationwide_online',
     sourceTitle: title.slice(0, 500) || sku,
-    outboundDestination:
-      destination ??
-      `https://synthetic.babyboel.test/unverified/${encodeURIComponent(sku)}`,
+    outboundDestination,
     availability,
     observedAt: input.observedAt,
     rawFacts: {
@@ -135,7 +133,8 @@ const snapshotFromRow = (input: {
       title,
       category: categorySource,
       size: sizeSource,
-      priceMinor: input.row.priceMinor ?? null,
+      priceMinor:
+        typeof input.row.priceMinor === 'number' ? input.row.priceMinor : null,
     },
     normalizedFacts: {
       brand: typeof input.row.brand === 'string' ? input.row.brand : null,
@@ -157,31 +156,37 @@ const snapshotFromRow = (input: {
   }
 }
 
+const emptyHash =
+  'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+
+const incompleteResult = (
+  input: SyntheticAdapterInput,
+  issueCode: string,
+  integrityHash = emptyHash,
+) =>
+  parseRetailerAdapterResult({
+    adapterIdentifier: syntheticAdapterIdentifier,
+    contractVersion: 1 as const,
+    sourceKey: input.sourceKey,
+    sourceHost: new URL(input.fetch.url).hostname,
+    retrievedAt: input.observedAt,
+    observedAt: input.observedAt,
+    responseIntegrityHash: integrityHash,
+    traversal: 'incomplete' as const,
+    issueCodes: [issueCode],
+    snapshots: [],
+  })
+
 export async function runSyntheticAdapter(
   input: SyntheticAdapterInput,
 ): Promise<RetailerAdapterResult> {
-  let fetched
   try {
-    fetched = await fetchAuthorizedSource(input.fetch)
+    return parseFeed(await fetchAuthorizedSource(input.fetch), input)
   } catch (error) {
     const code =
       error instanceof SourceFetchError ? error.code : 'SOURCE_FETCH_FAILED'
-    return parseRetailerAdapterResult({
-      adapterIdentifier: syntheticAdapterIdentifier,
-      contractVersion: 1 as const,
-      sourceKey: input.sourceKey,
-      sourceHost: new URL(input.fetch.url).hostname,
-      retrievedAt: input.observedAt,
-      observedAt: input.observedAt,
-      responseIntegrityHash:
-        'sha256:0000000000000000000000000000000000000000000000000000000000000000',
-      traversal: 'incomplete',
-      issueCodes: [code],
-      snapshots: [],
-    })
+    return incompleteResult(input, code)
   }
-
-  return parseFeed(fetched, input)
 }
 
 const parseFeed = (
@@ -192,47 +197,14 @@ const parseFeed = (
   try {
     parsed = JSON.parse(fetched.bodyText) as unknown
   } catch {
-    return parseRetailerAdapterResult({
-      adapterIdentifier: syntheticAdapterIdentifier,
-      contractVersion: 1 as const,
-      sourceKey: input.sourceKey,
-      sourceHost: new URL(input.fetch.url).hostname,
-      retrievedAt: input.observedAt,
-      observedAt: input.observedAt,
-      responseIntegrityHash: fetched.integrityHash,
-      traversal: 'incomplete',
-      issueCodes: ['FEED_MALFORMED'],
-      snapshots: [],
-    })
+    return incompleteResult(input, 'FEED_MALFORMED', fetched.integrityHash)
   }
   if (typeof parsed !== 'object' || parsed === null || !('items' in parsed)) {
-    return parseRetailerAdapterResult({
-      adapterIdentifier: syntheticAdapterIdentifier,
-      contractVersion: 1 as const,
-      sourceKey: input.sourceKey,
-      sourceHost: new URL(input.fetch.url).hostname,
-      retrievedAt: input.observedAt,
-      observedAt: input.observedAt,
-      responseIntegrityHash: fetched.integrityHash,
-      traversal: 'incomplete',
-      issueCodes: ['FEED_MALFORMED'],
-      snapshots: [],
-    })
+    return incompleteResult(input, 'FEED_MALFORMED', fetched.integrityHash)
   }
   const feed = parsed as { complete?: unknown; items: unknown }
   if (!Array.isArray(feed.items)) {
-    return parseRetailerAdapterResult({
-      adapterIdentifier: syntheticAdapterIdentifier,
-      contractVersion: 1 as const,
-      sourceKey: input.sourceKey,
-      sourceHost: new URL(input.fetch.url).hostname,
-      retrievedAt: input.observedAt,
-      observedAt: input.observedAt,
-      responseIntegrityHash: fetched.integrityHash,
-      traversal: 'incomplete',
-      issueCodes: ['FEED_MALFORMED'],
-      snapshots: [],
-    })
+    return incompleteResult(input, 'FEED_MALFORMED', fetched.integrityHash)
   }
 
   const issueCodes: string[] = []

@@ -850,12 +850,14 @@ export async function upsertObservedListing(
       await database
         .prepare(
           `UPDATE listings
-           SET source_title = ?, outbound_destination = ?, updated_at = ?
+           SET source_title = ?, outbound_destination = ?, availability = ?,
+             updated_at = ?
            WHERE id = ? AND updated_at = ?`,
         )
         .bind(
           input.sourceTitle,
           input.outboundDestination,
+          input.availability,
           input.observedAt,
           existing.id,
           existing.updatedAt,
@@ -914,15 +916,6 @@ export async function applyCompleteTraversalMisses(
 ) {
   const input = completeTraversalMissSchema.parse(untrustedInput)
   const present = [...new Set(input.presentListingKeys)]
-  if (present.length > 0) {
-    await database
-      .prepare(
-        `UPDATE listings SET miss_count = 0, updated_at = ?
-         WHERE retailer_id = ? AND retailer_sku IN (${present.map(() => '?').join(', ')})`,
-      )
-      .bind(input.observedAt, input.retailerId, ...present)
-      .run()
-  }
   const absentClause =
     present.length === 0
       ? ''

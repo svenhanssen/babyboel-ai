@@ -55,7 +55,21 @@ describe('retailer acquisition runner', () => {
   })
 
   it('runs the synthetic adapter through observation, match, current Offer, and health', async () => {
-    const [summary] = await runWith(database, 'normal')
+    const events: Record<string, unknown>[] = []
+    const [summary] = await runScheduledRetailers({
+      database: database.binding,
+      now,
+      origin: 'scheduled',
+      mode: 'fixture',
+      environment: 'local',
+      createId,
+      fixtureFetch: createFixtureFetch({
+        [syntheticFeedUrl]: syntheticFeeds.normal,
+      }),
+      writeEvent: (event) => {
+        events.push(event)
+      },
+    })
     expect(summary).toMatchObject({
       retailerId,
       status: 'complete',
@@ -67,11 +81,16 @@ describe('retailer acquisition runner', () => {
     const [offer] = await database.execute<{
       amount: number
       missCount: number
-      destination: string
+      outboundDestination: string
+      observations: number
     }>(`
       SELECT offers.payable_amount_minor AS amount,
         listings.miss_count AS missCount,
-        listings.outbound_destination AS destination
+        listings.outbound_destination AS outboundDestination,
+        (
+          SELECT COUNT(*) FROM source_observations
+          WHERE retailer_run_id = '${summary.runId}'
+        ) AS observations
       FROM offers
       JOIN listings ON listings.id = offers.listing_id
       WHERE listings.id = '${listingId}'
@@ -79,7 +98,8 @@ describe('retailer acquisition runner', () => {
     expect(offer).toEqual({
       amount: 1_999,
       missCount: 0,
-      destination: 'https://synthetic.babyboel.test/sku-4plus-80',
+      outboundDestination: 'https://synthetic.babyboel.test/sku-4plus-80',
+      observations: 2,
     })
 
     const health = await deriveAdminHealth(database.binding, {
@@ -88,28 +108,35 @@ describe('retailer acquisition runner', () => {
     })
     expect(health.retailers[0]?.health).toBe('healthy')
     expect(health.retailers[0]?.latestRun?.status).toBe('complete')
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event: 'retailer_run_started' }),
+        expect.objectContaining({ event: 'retailer_run_completed' }),
+      ]),
+    )
   }, 20_000)
 
   it('repeats the same feed without duplicating the natural observation key', async () => {
     await runWith(database, 'normal')
     await runWith(database, 'normal')
 
-    const [{ runs, observations }] = await database.execute<{
+    const [{ runs }] = await database.execute<{
       runs: number
-      observations: number
     }>(`
       SELECT
-        (SELECT COUNT(*) FROM retailer_runs WHERE started_at = ${now}) AS runs,
-        (
-          SELECT COUNT(*) FROM source_observations
-          WHERE response_integrity_hash = (
-            SELECT response_integrity_hash FROM source_observations
-            ORDER BY observed_at DESC, id DESC LIMIT 1
-          )
-        ) AS observations
+        (SELECT COUNT(*) FROM retailer_runs WHERE started_at = ${now}) AS runs
     `)
     expect(runs).toBe(2)
-    expect(observations).toBeGreaterThanOrEqual(2)
+    const [{ listings, offers }] = await database.execute<{
+      listings: number
+      offers: number
+    }>(`
+      SELECT
+        (SELECT COUNT(*) FROM listings WHERE retailer_sku = 'SKU-4PLUS-80') AS listings,
+        (SELECT COUNT(*) FROM offers WHERE listing_id = '${listingId}') AS offers
+    `)
+    expect(listings).toBe(1)
+    expect(offers).toBe(1)
   }, 20_000)
 
   it('refreshes a confirmed Listing from an incomplete run without counting a miss', async () => {
@@ -135,6 +162,34 @@ describe('retailer acquisition runner', () => {
       availability: 'available',
       fullTraversal: 0,
     })
+  }, 20_000)
+
+  it('does not count a miss when an incomplete run omits a Listing', async () => {
+    await runWith(database, 'incompleteOmit')
+    const [row] = await database.execute<{
+      missCount: number
+      availability: string
+      fullTraversal: number
+    }>(`
+      SELECT listings.miss_count AS missCount,
+        listings.availability AS availability,
+        retailer_runs.full_traversal AS fullTraversal
+      FROM listings
+      JOIN retailer_runs ON retailer_runs.started_at = ${now}
+      WHERE listings.id = '${listingId}'
+    `)
+    expect(row).toEqual({
+      missCount: 0,
+      availability: 'available',
+      fullTraversal: 0,
+    })
+    const [retailer] = await database.execute<{
+      latestSuccessfulRunAt: number
+    }>(`
+      SELECT latest_successful_run_at AS latestSuccessfulRunAt
+      FROM retailers WHERE id = '${retailerId}'
+    `)
+    expect(retailer.latestSuccessfulRunAt).toBe(1_787_990_400_000)
   }, 20_000)
 
   it('does not mark a Listing unavailable when a complete run has not yet accumulated two misses', async () => {
@@ -168,6 +223,20 @@ describe('retailer acquisition runner', () => {
     expect(row).toEqual({ missCount: 0, availability: 'available' })
   }, 20_000)
 
+  it('does not create a Listing from an invalid snapshot that has an outbound destination', async () => {
+    await runWith(database, 'invalidQuantity')
+    const [row] = await database.execute<{
+      listings: number
+      observations: number
+    }>(`
+      SELECT
+        (SELECT COUNT(*) FROM listings WHERE retailer_sku = 'SKU-BAD-Q') AS listings,
+        (SELECT COUNT(*) FROM source_observations
+          WHERE source_listing_key = 'SKU-BAD-Q') AS observations
+    `)
+    expect(row).toEqual({ listings: 0, observations: 1 })
+  }, 20_000)
+
   it('applies stable-presence unavailability after two complete misses', async () => {
     await runWith(database, 'missingListing', { now })
     await runWith(database, 'missingListing', { now: now + 1_000 })
@@ -188,6 +257,20 @@ describe('retailer acquisition runner', () => {
       offerAvailability: 'unavailable',
       missCount: 2,
     })
+  }, 20_000)
+
+  it('resets miss count after a later confirming complete run', async () => {
+    await runWith(database, 'missingListing', { now })
+    await runWith(database, 'missingListing', { now: now + 1_000 })
+    await runWith(database, 'normal', { now: now + 2_000 })
+    const [row] = await database.execute<{
+      missCount: number
+      availability: string
+    }>(`
+      SELECT miss_count AS missCount, availability
+      FROM listings WHERE id = '${listingId}'
+    `)
+    expect(row).toEqual({ missCount: 0, availability: 'available' })
   }, 20_000)
 
   it('skips a retailer whose lease is still held', async () => {

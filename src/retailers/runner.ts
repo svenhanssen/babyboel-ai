@@ -1,11 +1,4 @@
-import {
-  applyCompleteTraversalMisses,
-  ingestValidatedOfferObservation,
-  matchObservedListing,
-  recordIdentityObservation,
-  upsertObservedListing,
-} from '../catalog/ingestion'
-import { calculateOfferPrice, createMatchFingerprint } from '../catalog/domain'
+import { applyCompleteTraversalMisses } from '../catalog/ingestion'
 import { createUuidV7 } from '../db/uuid'
 import { canAcquireRetailerSource } from '../operations/service'
 import { emitOperationalEvent } from '../operations/events'
@@ -13,9 +6,10 @@ import {
   parseRetailerAdapterResult,
   type RetailerAdapterResult,
 } from './contract'
+import { persistAdapterSnapshot } from './persist'
+import { adapterForSourceKey } from './registry'
 import { createFixtureFetch, syntheticFeedUrl, syntheticFeeds } from './harness'
-import { runSyntheticAdapter, syntheticAdapterIdentifier } from './synthetic'
-import type { AuthorizedSourceRequest } from './fetch'
+import { syntheticAdapterIdentifier } from './synthetic'
 
 const leaseTtlMilliseconds = 10 * 60 * 1_000
 const syntheticItemCap = 500
@@ -35,18 +29,6 @@ export type RetailerRunSummary = {
   acceptedCount: number
   rejectedCount: number
   confirmedCount: number
-}
-
-type AdapterRunner = (input: {
-  sourceKey: string
-  sellerKey: string
-  observedAt: number
-  maxItems: number
-  fetch: AuthorizedSourceRequest
-}) => Promise<RetailerAdapterResult>
-
-const adapters: Record<string, AdapterRunner> = {
-  'fixture-feed': runSyntheticAdapter,
 }
 
 const sleep = async (milliseconds: number) => {
@@ -122,7 +104,7 @@ const finishRun = async (
     .bind(
       input.status,
       environment.now,
-      input.status === 'complete' ? 1 : 0,
+      input.status === 'complete' && input.fullTraversal ? 1 : 0,
       environment.now,
       input.errorCode,
       environment.now,
@@ -204,148 +186,6 @@ const skipRetailer = async (
   }
 }
 
-const persistSnapshot = async (
-  environment: RunEnvironment,
-  input: {
-    retailer: RetailerRow
-    sourceId: string
-    runId: string
-    result: RetailerAdapterResult
-    snapshot: RetailerAdapterResult['snapshots'][number]
-  },
-) => {
-  const createId = environment.createId ?? createUuidV7
-  if (input.snapshot.sellerKey !== input.retailer.slug) {
-    return { accepted: false, confirmed: false }
-  }
-  const listing = await upsertObservedListing(environment.database, {
-    listingId: createId(),
-    retailerId: input.retailer.id,
-    retailerSku: input.snapshot.sourceListingKey,
-    sourceTitle: input.snapshot.sourceTitle,
-    outboundDestination: input.snapshot.outboundDestination,
-    availability: input.snapshot.availability,
-    observedAt: environment.now,
-  })
-  const identityId = createId()
-  await recordIdentityObservation(environment.database, {
-    id: identityId,
-    retailerSourceId: input.sourceId,
-    retailerRunId: input.runId,
-    sourceListingKey: input.snapshot.sourceListingKey,
-    sourceOfferKey: 'identity',
-    observedAt: input.result.observedAt,
-    retrievedAt: input.result.retrievedAt,
-    sourceUrl: input.snapshot.outboundDestination,
-    rawFacts: input.snapshot.rawFacts,
-    normalizedFacts: input.snapshot.normalizedFacts,
-    extractionMethod: input.snapshot.extractionMethod,
-    sanitizedExcerpt: input.snapshot.evidenceReference.excerpt,
-    issueCodes: input.snapshot.issueCodes,
-    affectedFields: input.snapshot.affectedFields,
-    outcome: input.snapshot.outcome,
-    responseIntegrityHash: input.result.responseIntegrityHash,
-    sanitizedContentHash: input.snapshot.evidenceReference.contentHash,
-    observationFormat: 1,
-    adapterIdentifier: input.result.adapterIdentifier,
-  })
-  if (input.snapshot.outcome !== 'success') {
-    return { accepted: false, confirmed: false }
-  }
-  const listingState = await environment.database
-    .prepare(
-      `SELECT match_status AS matchStatus, match_fingerprint AS matchFingerprint,
-        package_id AS packageId
-       FROM listings WHERE id = ?`,
-    )
-    .bind(listing.listingId)
-    .first<{
-      matchStatus: string
-      matchFingerprint: string | null
-      packageId: string | null
-    }>()
-  const fingerprint = createMatchFingerprint(input.snapshot.normalizedFacts)
-  const factsChanged =
-    listingState?.matchFingerprint !== null &&
-    listingState?.matchFingerprint !== fingerprint
-  let matched =
-    listingState?.matchStatus === 'matched' &&
-    listingState.packageId !== null &&
-    !factsChanged
-  if (!matched) {
-    const match = await matchObservedListing(environment.database, {
-      listingId: listing.listingId,
-      observationId: identityId,
-      reviewCaseId: createId(),
-      expectedUpdatedAt: listing.updatedAt,
-      decidedAt: listing.updatedAt + 1,
-    })
-    matched = match.status === 'matched'
-  }
-  if (!matched) {
-    return { accepted: true, confirmed: false }
-  }
-  const currentOffer = await environment.database
-    .prepare(
-      `SELECT offers.id AS offerId, packages.unit_count AS packageUnitCount
-       FROM listings
-       JOIN packages ON packages.id = listings.package_id
-       LEFT JOIN offers
-         ON offers.listing_id = listings.id AND offers.source_offer_key = 'single'
-       WHERE listings.id = ?`,
-    )
-    .bind(listing.listingId)
-    .first<{ offerId: string | null; packageUnitCount: number }>()
-  if (!currentOffer) return { accepted: true, confirmed: false }
-  let confirmed = 0
-  for (const offer of input.snapshot.offers) {
-    const price = calculateOfferPrice({
-      payableAmountMinor: offer.payableAmountMinor,
-      packageUnitCount: currentOffer.packageUnitCount,
-      requiredPackageCount: offer.requiredPackageCount,
-    })
-    await ingestValidatedOfferObservation(environment.database, {
-      id: createId(),
-      retailerSourceId: input.sourceId,
-      retailerRunId: input.runId,
-      sourceListingKey: input.snapshot.sourceListingKey,
-      sourceOfferKey: offer.sourceOfferKey,
-      observedAt: input.result.observedAt,
-      retrievedAt: input.result.retrievedAt,
-      sourceUrl: input.snapshot.outboundDestination,
-      rawFacts: input.snapshot.rawFacts,
-      normalizedFacts: {
-        ...input.snapshot.normalizedFacts,
-        payableAmountMinor: offer.payableAmountMinor,
-        totalUnits: price.totalUnits,
-        requiredPackageCount: price.requiredPackageCount,
-        eligibility: offer.eligibility,
-        availability: offer.availability,
-      },
-      extractionMethod: input.snapshot.extractionMethod,
-      sanitizedExcerpt: input.snapshot.evidenceReference.excerpt,
-      issueCodes: [],
-      affectedFields: [],
-      outcome: 'success',
-      responseIntegrityHash: input.result.responseIntegrityHash,
-      sanitizedContentHash: input.snapshot.evidenceReference.contentHash,
-      observationFormat: 1,
-      adapterIdentifier: input.result.adapterIdentifier,
-      listingId: listing.listingId,
-      offerId: currentOffer.offerId ?? createId(),
-      payableAmountMinor: offer.payableAmountMinor,
-      requiredPackageCount: offer.requiredPackageCount,
-      eligibility: offer.eligibility,
-      conditionText: offer.conditionText,
-      availability: offer.availability,
-      declaredExpiresAt: offer.declaredExpiresAt,
-      outboundDestination: input.snapshot.outboundDestination,
-    })
-    confirmed += 1
-  }
-  return { accepted: true, confirmed: confirmed > 0 }
-}
-
 export async function runRetailerAcquisition(
   environment: RunEnvironment,
   retailer: RetailerRow,
@@ -367,8 +207,8 @@ export async function runRetailerAcquisition(
   ) {
     return skipRetailer(environment, retailer.id, 'SOURCE_UNAUTHORIZED')
   }
-  const adapter = adapters[retailer.sourceKey]
-  if (!adapter || environment.mode !== 'fixture') {
+  const adapter = adapterForSourceKey(retailer.sourceKey)
+  if (adapter === undefined || environment.mode !== 'fixture') {
     return skipRetailer(environment, retailer.id, 'ADAPTER_UNAVAILABLE')
   }
 
@@ -440,6 +280,7 @@ export async function runRetailerAcquisition(
           allowedHosts: ['synthetic.babyboel.test'],
           timeoutMs: 5_000,
           maxBytes: syntheticByteCap,
+          maxRedirects: 3,
           allowedContentTypes: ['application/json'],
           maxRetries: 2,
           fetch,
@@ -482,8 +323,9 @@ export async function runRetailerAcquisition(
   let confirmedCount = 0
   for (const snapshot of result.snapshots) {
     try {
-      const persisted = await persistSnapshot(environment, {
-        retailer,
+      const persisted = await persistAdapterSnapshot(environment, {
+        retailerId: retailer.id,
+        retailerSlug: retailer.slug,
         sourceId: retailer.sourceId,
         runId,
         result,

@@ -20,8 +20,9 @@ const runFeed = (fixture: keyof typeof syntheticFeeds, maxItems = 50) =>
     fetch: {
       url: syntheticFeedUrl,
       allowedHosts: ['synthetic.babyboel.test'],
-      timeoutMs: 50,
+      timeoutMs: fixture === 'timeout' ? 20 : 50,
       maxBytes: 1_024,
+      maxRedirects: 3,
       allowedContentTypes: ['application/json'],
       maxRetries: 0,
       fetch: createFixtureFetch({
@@ -84,6 +85,7 @@ describe('synthetic retailer adapter', () => {
     expect(result.snapshots[1]).toMatchObject({
       sourceListingKey: 'SKU-BROKEN-1',
       outcome: 'invalid',
+      outboundDestination: null,
     })
   })
 
@@ -112,5 +114,12 @@ describe('synthetic retailer adapter', () => {
       JSON.stringify({ oversized, unexpected, unauthorized }),
     ).not.toContain('super-secret')
     expect(JSON.stringify(unauthorized)).not.toContain('Bearer')
+  })
+
+  it('fails closed on a hung fixture without leaking the body', async () => {
+    const result = await runFeed('timeout')
+    expect(result.issueCodes).toContain('SOURCE_TIMEOUT')
+    expect(result.traversal).toBe('incomplete')
+    expect(JSON.stringify(result)).not.toContain('items')
   })
 })

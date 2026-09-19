@@ -16,6 +16,7 @@ export type AuthorizedSourceRequest = {
   allowedHosts: readonly string[]
   timeoutMs: number
   maxBytes: number
+  maxRedirects: number
   allowedContentTypes: readonly string[]
   maxRetries: number
   fetch: typeof globalThis.fetch
@@ -79,9 +80,25 @@ const readLimitedBody = async (response: Response, maxBytes: number) => {
   if (Number.isFinite(declared) && declared > maxBytes) {
     throw new SourceFetchError('SOURCE_BYTE_CAP_EXCEEDED')
   }
-  const buffer = new Uint8Array(await response.arrayBuffer())
-  if (buffer.byteLength > maxBytes) {
-    throw new SourceFetchError('SOURCE_BYTE_CAP_EXCEEDED')
+  const reader = response.body?.getReader()
+  if (!reader) return ''
+  const chunks: Uint8Array[] = []
+  let size = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel()
+      throw new SourceFetchError('SOURCE_BYTE_CAP_EXCEEDED')
+    }
+    chunks.push(value)
+  }
+  const buffer = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset)
+    offset += chunk.byteLength
   }
   return new TextDecoder().decode(buffer)
 }
@@ -102,14 +119,19 @@ const fetchOnce = async (
       headers: { accept: request.allowedContentTypes.join(', ') },
     })
     if (redirectStatuses.has(response.status)) {
-      if (redirectCount >= 3) {
+      if (redirectCount >= request.maxRedirects) {
         throw new SourceFetchError('SOURCE_REDIRECT_REJECTED')
       }
       const location = response.headers.get('location')
       if (!location) throw new SourceFetchError('SOURCE_REDIRECT_REJECTED')
       const next = new URL(location, url)
-      if (!request.allowedHosts.includes(next.hostname)) {
-        throw new SourceFetchError('SOURCE_REDIRECT_REJECTED')
+      try {
+        assertAllowedHost(next.href, request.allowedHosts)
+      } catch (error) {
+        if (error instanceof SourceFetchError) {
+          throw new SourceFetchError('SOURCE_REDIRECT_REJECTED')
+        }
+        throw error
       }
       return fetchOnce(request, next.href, redirectCount + 1)
     }
