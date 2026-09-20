@@ -1,9 +1,28 @@
+import { redirect } from '@tanstack/react-router'
+
 import {
+  categoryBrowsePath,
   listPublicProducts,
+  publicAvailabilityLabel,
   publicFixtureNow,
   type PublicCategory,
 } from './catalog'
 import { ProductCard } from './components'
+import { publicSiteOrigin } from './trust-identity'
+
+export function throwIfCanonicalPageOne(location: {
+  searchStr: string
+  pathname: string
+}) {
+  const search = location.searchStr.startsWith('?')
+    ? location.searchStr.slice(1)
+    : location.searchStr
+  if (new URLSearchParams(search).get('page') === '1') {
+    // TanStack Router uses its own serializable redirect control value.
+    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    throw redirect({ href: location.pathname })
+  }
+}
 
 export function normalizedSizeFromRoute(value: string) {
   const routeValue = value.replace(/^maat-/, '')
@@ -17,9 +36,7 @@ export function normalizedSizeToRoute(value: string) {
 }
 
 export function categoryPath(category: PublicCategory, size?: string | null) {
-  return size
-    ? `/${category.slug}/maat-${normalizedSizeToRoute(size)}`
-    : `/${category.slug}`
+  return categoryBrowsePath(category.slug, size)
 }
 
 export function resolveSizeBrowse(
@@ -40,20 +57,33 @@ export function resolveSizeBrowse(
 
 export function sizeBrowseHead(category: PublicCategory, size = '', page = 1) {
   const pageSuffix = page > 1 ? `?page=${page}` : ''
+  const result = listPublicProducts({
+    category: category.slug,
+    size,
+    page,
+    now: publicFixtureNow,
+  })
+  const pageLabel = page > 1 ? ` — pagina ${page}` : ''
   return {
     meta: [
       {
-        title: `${category.name} maat ${size} vergelijken — Babyboel`,
+        title: `${category.name} maat ${size} vergelijken${pageLabel} — Babyboel`,
       },
       {
         name: 'description',
-        content: `Vergelijk actuele Offers voor ${category.name.toLowerCase()} maat ${size}.`,
+        content:
+          result.total === 0
+            ? `Geen Products voor ${category.name.toLowerCase()} maat ${size} in deze vergelijking.`
+            : `Vergelijk actuele Offers voor ${category.name.toLowerCase()} maat ${size}${pageLabel}.`,
       },
+      ...(result.total === 0
+        ? [{ name: 'robots', content: 'noindex, follow' }]
+        : []),
     ],
     links: [
       {
         rel: 'canonical',
-        href: `https://babyboel.nl${categoryPath(category, size)}${pageSuffix}`,
+        href: `${publicSiteOrigin}${categoryPath(category, size)}${pageSuffix}`,
       },
     ],
   }
@@ -170,7 +200,9 @@ export function BrowsePage({
               aria-labelledby="unavailable-products"
               className="product-section"
             >
-              <h2 id="unavailable-products">Geen actuele prijs</h2>
+              <h2 id="unavailable-products">
+                {publicAvailabilityLabel.no_current_offer}
+              </h2>
               <p>
                 Deze Products blijven vindbaar, maar hebben nu geen bevestigde
                 universele Offer.

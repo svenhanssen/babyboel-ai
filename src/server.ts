@@ -3,12 +3,17 @@ import handler from '@tanstack/react-start/server-entry'
 import { runScheduledAcquisition } from './scheduled'
 import { handleAdminHealth } from './operations/http'
 import { handlePublicHealth } from './operations/service'
+import { handleOutboundIntent } from './public/intent'
+import { handleRobots, handleSitemap } from './public/seo'
 import { createApplicationSecurityBoundary } from './security/admin-boundary'
 
 const secureFetch = createApplicationSecurityBoundary(
   (request: Request, env: Env) => {
     const pathname = new URL(request.url).pathname
     if (pathname === '/health') return handlePublicHealth(env.DB)
+    if (pathname === '/sitemap.xml') return handleSitemap()
+    if (pathname === '/robots.txt') return handleRobots()
+    if (pathname === '/intent') return handleOutboundIntent(request, env.DB)
     if (pathname === '/admin/health') {
       return handleAdminHealth(env.DB, {
         now: Date.now(),

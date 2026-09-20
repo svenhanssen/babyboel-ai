@@ -6,7 +6,12 @@ import {
 import { z } from 'zod'
 
 import { publicCategoryBySlug } from '../public/catalog'
-import { BrowsePage, resolveSizeBrowse, sizeBrowseHead } from '../public/pages'
+import {
+  BrowsePage,
+  resolveSizeBrowse,
+  sizeBrowseHead,
+  throwIfCanonicalPageOne,
+} from '../public/pages'
 
 const category = publicCategoryBySlug.luierbroekjes
 const searchSchema = z.object({
@@ -17,6 +22,7 @@ export const Route = createFileRoute('/luierbroekjes/maat-{$size}')({
   validateSearch: searchSchema,
   search: { middlewares: [stripSearchParams({ page: 1 })] },
   loaderDeps: ({ search }) => search,
+  beforeLoad: ({ location }) => throwIfCanonicalPageOne(location),
   loader: ({ deps, params }) => {
     const size = resolveSizeBrowse(category, params.size, deps.page)
     if (!size) {

@@ -83,6 +83,32 @@ describe('fixture-backed public catalog', () => {
     expect(product?.degradedRetailers).toEqual(['Wehkamp'])
   })
 
+  it('keeps verified Offers when only some retailers cannot be confirmed', () => {
+    const product = getPublicProduct(
+      'zacht-start-dag-maat-5-p028',
+      publicFixtureNow,
+    )
+
+    expect(product?.availabilityState).toBe('current')
+    expect(product?.degradedRetailers).toEqual(['Wehkamp'])
+    expect(
+      product?.offers.primary.map(({ sourceOfferKey, retailerName }) => [
+        sourceOfferKey,
+        retailerName,
+      ]),
+    ).toEqual([['plein-p028', 'Plein']])
+  })
+
+  it('keeps retailer-reported unavailability distinct from stale prices', () => {
+    const product = getPublicProduct(
+      'zacht-start-reis-maat-5-p027',
+      publicFixtureNow,
+    )
+
+    expect(product?.availabilityState).toBe('unavailable')
+    expect(product?.offers.primary).toEqual([])
+  })
+
   it('rejects impossible pages and mismatched route sizes', () => {
     expect(() =>
       listPublicProducts({

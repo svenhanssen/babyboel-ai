@@ -26,19 +26,20 @@ test('finder to browse to exact Product and outbound disclosure', async ({
     .getByRole('link', { name: /Bekijk Zacht & Start Original/ })
     .click()
   await expect(
-    page.getByRole('heading', { name: 'Aanbiedingen voor iedereen' }),
+    page.getByRole('heading', { name: 'Offers voor iedereen' }),
   ).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'Aanbiedingen met voorwaarden' }),
+    page.getByRole('heading', { name: 'Offers met voorwaarden' }),
   ).toBeVisible()
 
   const outbound = page.getByRole('link', { name: 'Bekijk bij Plein' }).first()
   await expect(outbound).toHaveAttribute(
     'href',
-    'https://retailer.example/plein-multi',
+    'https://partners.example/click?destination=https%3A%2F%2Fretailer.example%2Fplein-multi&subid=product_offer&camref=babyboel-fixture',
   )
+  await expect(outbound).toHaveAttribute('rel', 'sponsored noopener')
   await expect(outbound).not.toHaveAttribute('target', '_blank')
-  await expect(page.getByText(/kan commissie opleveren/)).toBeVisible()
+  await expect(page.getByText(/kan commissie ontvangen/)).toBeVisible()
 
   await page.addScriptTag({ path: axePath })
   const violations = await page.evaluate(async () => {
@@ -71,7 +72,9 @@ test.describe('without JavaScript', () => {
     await page.getByRole('link', { name: 'Volgende' }).click()
     await expect(page).toHaveURL('/luiers/maat-4-plus?page=2')
     await page.getByRole('link', { name: /Bekijk Zacht & Start Nacht/ }).click()
-    await expect(page.getByText('Geen actuele aanbieding')).toBeVisible()
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Geen actuele prijs' }),
+    ).toBeVisible()
     await expect(
       page.getByRole('table', { name: 'Prijsgeschiedenis als tabel' }),
     ).toBeVisible()
@@ -82,19 +85,31 @@ test.describe('without JavaScript', () => {
       .first()
     await expect(outbound).toHaveAttribute(
       'href',
-      'https://retailer.example/plein-multi',
+      'https://partners.example/click?destination=https%3A%2F%2Fretailer.example%2Fplein-multi&subid=product_offer&camref=babyboel-fixture',
     )
   })
 })
 
 test('shows honest no-current and degraded states', async ({ page }) => {
   await page.goto('/producten/zacht-start-nacht-maat-4-plus-p025')
-  await expect(page.getByText('Geen actuele aanbieding')).toBeVisible()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Geen actuele prijs' }),
+  ).toBeVisible()
   await expect(page.getByRole('link', { name: /Bekijk bij/ })).toHaveCount(0)
 
   await page.goto('/producten/zacht-start-comfort-maat-4-plus-p026')
-  await expect(page.getByText('Vergelijking tijdelijk beperkt')).toBeVisible()
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Prijzen tijdelijk niet beschikbaar' }),
+  ).toBeVisible()
   await expect(page.getByText(/Wehkamp/)).toBeVisible()
+  await expect(page.getByRole('link', { name: /Bekijk bij/ })).toHaveCount(0)
+
+  await page.goto('/producten/zacht-start-reis-maat-5-p027')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Niet meer verkrijgbaar' }),
+  ).toBeVisible()
   await expect(page.getByRole('link', { name: /Bekijk bij/ })).toHaveCount(0)
 })
 
@@ -140,4 +155,32 @@ test('rejects invalid public selections and keeps trust links live', async ({
   ]) {
     expect((await request.get(path)).status()).toBe(200)
   }
+
+  const sitemap = await request.get('/sitemap.xml')
+  const sitemapBody = await sitemap.text()
+  expect(sitemap.status()).toBe(200)
+  expect(sitemapBody).toContain('https://babyboel.nl/methode')
+  expect(sitemapBody).toContain(
+    'https://babyboel.nl/producten/zacht-start-original-maat-4-plus-p001',
+  )
+  expect(sitemapBody).not.toContain('page=2')
+  expect(sitemapBody).not.toContain('/luiers/maat-1')
+
+  const robots = await request.get('/robots.txt')
+  expect(robots.status()).toBe(200)
+  expect(await robots.text()).toContain('Disallow: /admin')
+
+  const empty = await request.get('/luiers/maat-1')
+  expect(empty.status()).toBe(200)
+  expect(await empty.text()).toContain('noindex')
+
+  await page.goto('/luiers/maat-4-plus?page=1')
+  await expect(page).toHaveURL('/luiers/maat-4-plus')
+
+  await page.goto('/methode')
+  await expect(page.getByRole('heading', { name: /vergelijkt/i })).toBeVisible()
+  await page.goto('/dekking')
+  await expect(
+    page.getByText('nog niet actief', { exact: true }).first(),
+  ).toBeVisible()
 })

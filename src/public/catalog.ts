@@ -1,5 +1,10 @@
 import type { CategoryCode, NormalizedSizeCode } from '../db/domain'
 import { rankCurrentOffers, type RankedOffer } from '../catalog/domain'
+import {
+  resolveOutboundAction,
+  retailerSlugFromName,
+  type OutboundAction,
+} from './affiliate'
 import { requireVerifiedOutboundDestination } from '../security/outbound'
 
 export const publicFixtureNow = Date.parse('2026-09-11T10:00:00.000Z')
@@ -41,6 +46,15 @@ export const publicCategoryBySlug = Object.fromEntries(
   publicCategories.map((category) => [category.slug, category]),
 ) as Record<PublicCategory['slug'], PublicCategory>
 
+export function categoryBrowsePath(
+  category: PublicCategory['slug'],
+  size?: string | null,
+) {
+  return size
+    ? `/${category}/maat-${size.replace('+', '-plus')}`
+    : `/${category}`
+}
+
 // Deliberately flattened, read-only presentation data. Product, Package,
 // Listing, and Offer remain separate in the authoritative catalog model.
 export interface PublicOfferView extends RankedOffer {
@@ -48,6 +62,7 @@ export interface PublicOfferView extends RankedOffer {
   sourceOfferKey: string
   packageUnitCount: number
   outboundDestination: string
+  action: OutboundAction
 }
 
 export interface PublicHistoryPoint {
@@ -69,6 +84,33 @@ interface PublicProductFixture {
   degradedRetailers?: string[]
 }
 
+export type PublicAvailabilityState =
+  'current' | 'no_current_offer' | 'degraded' | 'unavailable'
+
+export const publicAvailabilityLabel: Record<PublicAvailabilityState, string> =
+  {
+    current: 'Actueel',
+    no_current_offer: 'Geen actuele prijs',
+    degraded: 'Prijzen tijdelijk niet beschikbaar',
+    unavailable: 'Niet meer verkrijgbaar',
+  }
+
+export function productName(product: {
+  brand: string
+  line: string
+  variant: string
+  normalizedSize: string | null
+}) {
+  return [
+    product.brand,
+    product.line,
+    product.variant,
+    product.normalizedSize ? `maat ${product.normalizedSize}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
 export interface PublicProductSummary {
   id: string
   routeKey: string
@@ -78,6 +120,7 @@ export interface PublicProductSummary {
   category: PublicCategory['slug']
   normalizedSize: NormalizedSizeCode | null
   bestOffer: PublicOfferView | null
+  availabilityState: PublicAvailabilityState
 }
 
 export interface PublicProduct extends Omit<PublicProductFixture, 'offers'> {
@@ -86,7 +129,7 @@ export interface PublicProduct extends Omit<PublicProductFixture, 'offers'> {
     restricted: PublicOfferView[]
     bestWithoutMinimum: PublicOfferView | null
   }
-  availabilityState: 'current' | 'no_current_offer' | 'degraded'
+  availabilityState: PublicAvailabilityState
   alternatives: PublicProductSummary[]
   degradedRetailers: string[]
 }
@@ -103,6 +146,7 @@ function offer(
   eligibility: PublicOfferView['eligibility'] = 'universal',
   conditionText: string | null = null,
   hoursAgo = 3,
+  availability: PublicOfferView['availability'] = 'available',
 ): PublicOfferView {
   const id = `fixture-${sourceOfferKey}`
   const confirmationTime = confirmedAt(hoursAgo)
@@ -121,13 +165,17 @@ function offer(
     payableAmountMinor,
     eligibility,
     conditionText,
-    availability: 'available',
+    availability,
     confirmedAt: confirmationTime,
     declaredExpiresAt: null,
     outboundDestination: requireVerifiedOutboundDestination(
       outboundDestination,
       outboundDestination,
     ),
+    action: resolveOutboundAction({
+      retailerSlug: retailerSlugFromName(retailerName),
+      verifiedDestination: outboundDestination,
+    }),
   }
 }
 
@@ -233,6 +281,46 @@ const degradedDiaper: PublicProductFixture = {
   degradedRetailers: ['Wehkamp'],
 }
 
+const discontinuedDiaper: PublicProductFixture = {
+  id: 'p027',
+  routeKey: 'zacht-start-reis-maat-5-p027',
+  brand: 'Zacht & Start',
+  line: 'Reis',
+  variant: 'Compact',
+  category: 'luiers',
+  normalizedSize: '5',
+  offers: [
+    offer(
+      'gone-p027',
+      'Plein',
+      1099,
+      44,
+      1,
+      'universal',
+      'Niet meer verkrijgbaar volgens de retailer',
+      2,
+      'unavailable',
+    ),
+  ],
+  history: baseHistory,
+}
+
+const mixedDegradedDiaper: PublicProductFixture = {
+  id: 'p028',
+  routeKey: 'zacht-start-dag-maat-5-p028',
+  brand: 'Zacht & Start',
+  line: 'Dag',
+  variant: 'Ademend',
+  category: 'luiers',
+  normalizedSize: '5',
+  offers: [
+    offer('plein-p028', 'Plein', 899, 40),
+    offer('wehkamp-p028', 'Wehkamp', 799, 40),
+  ],
+  history: baseHistory,
+  degradedRetailers: ['Wehkamp'],
+}
+
 const otherProducts: PublicProductFixture[] = [
   {
     id: 'p101',
@@ -263,6 +351,8 @@ const productFixtures: readonly PublicProductFixture[] = [
   ...generatedDiapers,
   staleDiaper,
   degradedDiaper,
+  discontinuedDiaper,
+  mixedDegradedDiaper,
   ...otherProducts,
 ]
 
@@ -279,10 +369,30 @@ function compareOffers(left: PublicOfferView, right: PublicOfferView) {
 }
 
 function rankedOffers(fixture: PublicProductFixture, now: number) {
-  if (fixture.degradedRetailers?.length) {
-    return { primary: [], restricted: [], bestWithoutMinimum: null }
+  const degradedRetailers = new Set(fixture.degradedRetailers ?? [])
+  const verifiedOffers = fixture.offers.filter(
+    (candidate) => !degradedRetailers.has(candidate.retailerName),
+  )
+  return rankCurrentOffers(verifiedOffers, now)
+}
+
+function availabilityStateFor(
+  fixture: PublicProductFixture,
+  now: number,
+): PublicAvailabilityState {
+  const offers = rankedOffers(fixture, now)
+  if (offers.primary.length > 0 || offers.restricted.length > 0)
+    return 'current'
+  if ((fixture.degradedRetailers ?? []).length > 0) return 'degraded'
+  if (
+    fixture.offers.some(
+      (candidate) => candidate.availability === 'unavailable',
+    ) &&
+    fixture.offers.every((candidate) => candidate.availability !== 'available')
+  ) {
+    return 'unavailable'
   }
-  return rankCurrentOffers(fixture.offers, now)
+  return 'no_current_offer'
 }
 
 function summarize(
@@ -298,6 +408,7 @@ function summarize(
     category: fixture.category,
     normalizedSize: fixture.normalizedSize,
     bestOffer: rankedOffers(fixture, now).primary[0] ?? null,
+    availabilityState: availabilityStateFor(fixture, now),
   }
 }
 
@@ -393,13 +504,26 @@ export function getPublicProduct(
     offers,
     alternatives,
     degradedRetailers,
-    availabilityState:
-      degradedRetailers.length > 0
-        ? 'degraded'
-        : offers.primary.length > 0
-          ? 'current'
-          : 'no_current_offer',
+    availabilityState: availabilityStateFor(fixture, now),
   }
+}
+
+export function publicProductRouteKeys() {
+  return productFixtures.map((product) => product.routeKey)
+}
+
+export function isKnownPublicListing(listingId: string) {
+  return productFixtures.some((product) =>
+    product.offers.some((candidate) => candidate.listingId === listingId),
+  )
+}
+
+export function isKnownPublicRetailerSlug(slug: string) {
+  return productFixtures.some((product) =>
+    product.offers.some(
+      (candidate) => retailerSlugFromName(candidate.retailerName) === slug,
+    ),
+  )
 }
 
 export function listFinderProducts(category: string, size?: string) {
