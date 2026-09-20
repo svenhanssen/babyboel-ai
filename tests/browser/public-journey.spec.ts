@@ -26,10 +26,10 @@ test('finder to browse to exact Product and outbound disclosure', async ({
     .getByRole('link', { name: /Bekijk Zacht & Start Original/ })
     .click()
   await expect(
-    page.getByRole('heading', { name: 'Aanbiedingen voor iedereen' }),
+    page.getByRole('heading', { name: 'Offers voor iedereen' }),
   ).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'Aanbiedingen met voorwaarden' }),
+    page.getByRole('heading', { name: 'Offers met voorwaarden' }),
   ).toBeVisible()
 
   const outbound = page.getByRole('link', { name: 'Bekijk bij Plein' }).first()

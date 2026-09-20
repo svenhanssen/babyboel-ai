@@ -34,6 +34,7 @@ describe('Dutch trust copy', () => {
     expect(
       screen.getByRole('heading', { name: /directe bestemming/i }),
     ).toBeTruthy()
+    expect(screen.getByText(/Affiliate program/)).toBeTruthy()
   })
 
   it('lists coverage statuses without whole-market claims on /dekking', () => {
@@ -58,6 +59,9 @@ describe('Dutch trust copy', () => {
     expect(screen.queryByText(/cookie banner/i)).toBeNull()
     expect(screen.getByText(/AVG artikel 6/)).toBeTruthy()
     expect(screen.getByText(/gerechtvaardigd belang/)).toBeTruthy()
+    expect(
+      screen.getByText(/AVG artikel 6 is daarop niet van toepassing/),
+    ).toBeTruthy()
 
     cleanup()
     render(<TrustPage page={trustPages.contact} />)

@@ -43,10 +43,10 @@ describe('public comparison components', () => {
     render(<OfferComparison product={product} />)
 
     expect(
-      screen.getByRole('heading', { name: 'Aanbiedingen voor iedereen' }),
+      screen.getByRole('heading', { name: 'Offers voor iedereen' }),
     ).toBeTruthy()
     expect(
-      screen.getByRole('heading', { name: 'Aanbiedingen met voorwaarden' }),
+      screen.getByRole('heading', { name: 'Offers met voorwaarden' }),
     ).toBeTruthy()
     expect(screen.getByText('Alleen met ledenvoordeel')).toBeTruthy()
     expect(
@@ -89,6 +89,20 @@ describe('public comparison components', () => {
         })
       ).violations,
     ).toEqual([])
+  })
+
+  it('keeps verified retailer actions when another retailer is degraded', () => {
+    const product = getPublicProduct(
+      'zacht-start-dag-maat-5-p028',
+      publicFixtureNow,
+    )!
+    render(<ProductPageContent product={product} />)
+
+    expect(screen.getByRole('link', { name: 'Bekijk bij Plein' })).toBeTruthy()
+    expect(
+      screen.queryByRole('link', { name: 'Bekijk bij Wehkamp' }),
+    ).toBeNull()
+    expect(screen.getByText(/niet in de rangschikking/)).toBeTruthy()
   })
 
   it('shows relative freshness and the four public Product states on cards', () => {

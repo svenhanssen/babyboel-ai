@@ -46,6 +46,15 @@ export const publicCategoryBySlug = Object.fromEntries(
   publicCategories.map((category) => [category.slug, category]),
 ) as Record<PublicCategory['slug'], PublicCategory>
 
+export function categoryBrowsePath(
+  category: PublicCategory['slug'],
+  size?: string | null,
+) {
+  return size
+    ? `/${category}/maat-${size.replace('+', '-plus')}`
+    : `/${category}`
+}
+
 // Deliberately flattened, read-only presentation data. Product, Package,
 // Listing, and Offer remain separate in the authoritative catalog model.
 export interface PublicOfferView extends RankedOffer {
@@ -296,6 +305,22 @@ const discontinuedDiaper: PublicProductFixture = {
   history: baseHistory,
 }
 
+const mixedDegradedDiaper: PublicProductFixture = {
+  id: 'p028',
+  routeKey: 'zacht-start-dag-maat-5-p028',
+  brand: 'Zacht & Start',
+  line: 'Dag',
+  variant: 'Ademend',
+  category: 'luiers',
+  normalizedSize: '5',
+  offers: [
+    offer('plein-p028', 'Plein', 899, 40),
+    offer('wehkamp-p028', 'Wehkamp', 799, 40),
+  ],
+  history: baseHistory,
+  degradedRetailers: ['Wehkamp'],
+}
+
 const otherProducts: PublicProductFixture[] = [
   {
     id: 'p101',
@@ -327,6 +352,7 @@ const productFixtures: readonly PublicProductFixture[] = [
   staleDiaper,
   degradedDiaper,
   discontinuedDiaper,
+  mixedDegradedDiaper,
   ...otherProducts,
 ]
 
@@ -343,10 +369,11 @@ function compareOffers(left: PublicOfferView, right: PublicOfferView) {
 }
 
 function rankedOffers(fixture: PublicProductFixture, now: number) {
-  if (fixture.degradedRetailers?.length) {
-    return { primary: [], restricted: [], bestWithoutMinimum: null }
-  }
-  return rankCurrentOffers(fixture.offers, now)
+  const degradedRetailers = new Set(fixture.degradedRetailers ?? [])
+  const verifiedOffers = fixture.offers.filter(
+    (candidate) => !degradedRetailers.has(candidate.retailerName),
+  )
+  return rankCurrentOffers(verifiedOffers, now)
 }
 
 function availabilityStateFor(
@@ -354,10 +381,9 @@ function availabilityStateFor(
   now: number,
 ): PublicAvailabilityState {
   const offers = rankedOffers(fixture, now)
-  const degradedRetailers = fixture.degradedRetailers ?? []
-  if (degradedRetailers.length > 0) return 'degraded'
   if (offers.primary.length > 0 || offers.restricted.length > 0)
     return 'current'
+  if ((fixture.degradedRetailers ?? []).length > 0) return 'degraded'
   if (
     fixture.offers.some(
       (candidate) => candidate.availability === 'unavailable',

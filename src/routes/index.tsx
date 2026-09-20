@@ -2,7 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { publicCategories } from '../public/catalog'
 import { normalizedSizeToRoute } from '../public/pages'
-import { homeStructuredData, publicSiteOrigin } from '../public/seo'
+import { homeStructuredData } from '../public/structured-data'
+import { publicSiteOrigin } from '../public/trust-identity'
 import { PriceHistory } from '../ui/price-history'
 
 const finderSizes = [...new Set(publicCategories.flatMap(({ sizes }) => sizes))]
@@ -10,7 +11,7 @@ const finderSizes = [...new Set(publicCategories.flatMap(({ sizes }) => sizes))]
 export const Route = createFileRoute('/')({
   head: () => ({
     meta: [
-      { title: 'Babyboel — vergelijk actuele luierprijzen' },
+      { title: 'Babyboel — vergelijk actuele Offers voor luiers' },
       {
         name: 'description',
         content:
@@ -18,7 +19,7 @@ export const Route = createFileRoute('/')({
       },
       {
         property: 'og:title',
-        content: 'Babyboel — vergelijk actuele luierprijzen',
+        content: 'Babyboel — vergelijk actuele Offers voor luiers',
       },
       {
         property: 'og:description',

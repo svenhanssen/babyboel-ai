@@ -24,7 +24,7 @@ describe('affiliate destination construction', () => {
     expect(href.hostname).toBe('partners.example')
     expect(href.searchParams.get('destination')).toBe(verifiedPlein)
     expect(href.searchParams.get('subid')).toBe('product_offer')
-    expect(affiliatePrograms.plein.termsReference).toMatch(/approval/)
+    expect(affiliatePrograms.plein.termsReference).toMatch(/terms/)
     expect(affiliatePrograms.wehkamp.enabled).toBe(false)
   })
 

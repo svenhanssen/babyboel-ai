@@ -2,7 +2,10 @@ import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { getPublicProduct, publicFixtureNow } from '../public/catalog'
 import { ProductPageContent } from '../public/components'
-import { productPageHead, productStructuredData } from '../public/seo'
+import {
+  productPageHead,
+  productStructuredData,
+} from '../public/structured-data'
 
 export const Route = createFileRoute('/producten/$productKey')({
   loader: ({ params }) => {

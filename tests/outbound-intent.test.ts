@@ -26,7 +26,7 @@ describe('outbound intent collection', () => {
           retailer: 'plein',
           listing: 'fixture-listing-plein-multi',
           placement: 'product_offer',
-          affiliate: true,
+          affiliateLink: true,
         }),
       }),
       database.binding,
@@ -43,7 +43,7 @@ describe('outbound intent collection', () => {
           retailer: 'plein',
           listing: 'fixture-listing-plein-multi',
           placement: 'product_offer',
-          affiliate: true,
+          affiliateLink: true,
         }),
       }),
       database.binding,
@@ -52,7 +52,7 @@ describe('outbound intent collection', () => {
 
     expect(first.status).toBe(204)
     const rows = await database.execute(
-      'SELECT utc_day, retailer_slug, listing_key, placement_code, affiliate, count FROM outbound_intent_counts',
+      'SELECT utc_day, retailer_slug, listing_key, placement_code, affiliate_link, count FROM outbound_intent_counts',
     )
     expect(rows).toEqual([
       {
@@ -60,7 +60,7 @@ describe('outbound intent collection', () => {
         retailer_slug: 'plein',
         listing_key: 'fixture-listing-plein-multi',
         placement_code: 'product_offer',
-        affiliate: 1,
+        affiliate_link: 1,
         count: 2,
       },
     ])
@@ -79,7 +79,7 @@ describe('outbound intent collection', () => {
           retailer: 'plein',
           listing: 'fixture-listing-plein-multi',
           placement: 'product_offer',
-          affiliate: true,
+          affiliateLink: true,
           visitorId: 'abc',
         }),
       }),
@@ -97,7 +97,7 @@ describe('outbound intent collection', () => {
           retailer: 'unknown',
           listing: 'fixture-listing-plein-multi',
           placement: 'product_offer',
-          affiliate: false,
+          affiliateLink: false,
         }),
       }),
       database.binding,
@@ -114,7 +114,7 @@ describe('outbound intent collection', () => {
           retailer: 'plein',
           listing: 'fixture-listing-plein-multi',
           placement: 'product_offer',
-          affiliate: true,
+          affiliateLink: true,
         }),
       }),
       database.binding,

@@ -43,7 +43,7 @@ export const Route = createFileRoute('/billendoekjes')({
       },
       {
         name: 'description',
-        content: 'Vergelijk actuele billendoekjes op universele stukprijs.',
+        content: `Vergelijk actuele billendoekjes op universele stukprijs${loaderData && loaderData.page > 1 ? ` — pagina ${loaderData.page}` : ''}.`,
       },
     ],
     links: [

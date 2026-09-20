@@ -1,12 +1,17 @@
 import { ExternalLink } from 'lucide-react'
 
 import { PriceHistory } from '../ui/price-history'
-import { retailerSlugFromName } from './affiliate'
+import { outboundIntentPayload } from './affiliate'
 import {
+  cardAvailabilityLabel,
+  publicAvailabilityLede,
+} from './availability-copy'
+import {
+  categoryBrowsePath,
   productName,
   publicAvailabilityLabel,
+  publicCategoryBySlug,
   publicFixtureNow,
-  type PublicAvailabilityState,
   type PublicOfferView,
   type PublicProduct,
   type PublicProductSummary,
@@ -52,12 +57,6 @@ function Freshness({ confirmedAt }: { confirmedAt: number }) {
   )
 }
 
-function browseStateLabel(state: PublicAvailabilityState) {
-  return state === 'current'
-    ? publicAvailabilityLabel.no_current_offer
-    : publicAvailabilityLabel[state]
-}
-
 export function ProductCard({ product }: { product: PublicProductSummary }) {
   const offer = product.bestOffer
   const name = productName(product)
@@ -84,7 +83,9 @@ export function ProductCard({ product }: { product: PublicProductSummary }) {
           <Freshness confirmedAt={offer.confirmedAt} />
         </div>
       ) : (
-        <p className="notice">{browseStateLabel(product.availabilityState)}</p>
+        <p className="notice">
+          {cardAvailabilityLabel(product.availabilityState)}
+        </p>
       )}
       <a
         className="button button--secondary"
@@ -142,12 +143,7 @@ function OfferRow({
           void fetch('/intent', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              retailer: retailerSlugFromName(offer.retailerName),
-              listing: offer.listingId,
-              placement: 'product_offer',
-              affiliate: offer.action.affiliateLink,
-            }),
+            body: JSON.stringify(outboundIntentPayload(offer)),
             keepalive: true,
             mode: 'same-origin',
           }).catch(() => undefined)
@@ -167,7 +163,7 @@ export function OfferComparison({ product }: { product: PublicProduct }) {
     <div className="offer-comparison">
       {primary.length > 0 && (
         <section aria-labelledby="universal-offers">
-          <h2 id="universal-offers">Aanbiedingen voor iedereen</h2>
+          <h2 id="universal-offers">Offers voor iedereen</h2>
           {primary[0]?.requiredPackageCount > 1 && bestWithoutMinimum && (
             <p className="notice">
               De laagste stukprijs vraagt meerdere verpakkingen. Zonder
@@ -184,7 +180,7 @@ export function OfferComparison({ product }: { product: PublicProduct }) {
       )}
       {restricted.length > 0 && (
         <section aria-labelledby="restricted-offers">
-          <h2 id="restricted-offers">Aanbiedingen met voorwaarden</h2>
+          <h2 id="restricted-offers">Offers met voorwaarden</h2>
           <p>
             Deze prijzen vragen lidmaatschap, een coupon of een andere
             voorwaarde en tellen niet mee voor de rangschikking hierboven.
@@ -215,7 +211,7 @@ function OfferDisclosure({ product }: { product: PublicProduct }) {
 
   return (
     <aside
-      className="affiliate-note"
+      className="offer-disclosure"
       aria-label="Toelichting bij deze vergelijking"
     >
       {lowestClaim && <p>{lowestClaim}</p>}
@@ -256,19 +252,30 @@ function OfferDisclosure({ product }: { product: PublicProduct }) {
 }
 
 function AvailabilityNotice({ product }: { product: PublicProduct }) {
-  if (product.availabilityState === 'current') return null
-  if (product.availabilityState === 'degraded') {
+  if (product.degradedRetailers.length > 0) {
+    if (product.availabilityState === 'degraded') {
+      return (
+        <div className="notice notice--warning" role="status">
+          <strong>{publicAvailabilityLabel.degraded}</strong>
+          <span>
+            We konden de actuele Offers van{' '}
+            {product.degradedRetailers.join(', ')} tijdelijk niet verifiëren.
+            Daarom tonen we geen onbevestigde prijs of retaileractie.
+          </span>
+        </div>
+      )
+    }
     return (
       <div className="notice notice--warning" role="status">
-        <strong>{publicAvailabilityLabel.degraded}</strong>
         <span>
           We konden de actuele Offers van {product.degradedRetailers.join(', ')}{' '}
-          tijdelijk niet verifiëren. Daarom tonen we geen onbevestigde prijs of
-          retaileractie.
+          tijdelijk niet verifiëren. Die retailer zit niet in de rangschikking
+          hieronder.
         </span>
       </div>
     )
   }
+  if (product.availabilityState === 'current') return null
   if (product.availabilityState === 'unavailable') {
     return (
       <div className="notice notice--warning" role="status">
@@ -303,17 +310,12 @@ export function ProductPageContent({ product }: { product: PublicProduct }) {
           </li>
           <li>
             <a
-              href={
-                product.normalizedSize
-                  ? `/${product.category}/maat-${product.normalizedSize.replace('+', '-plus')}`
-                  : `/${product.category}`
-              }
+              href={categoryBrowsePath(
+                product.category,
+                product.normalizedSize,
+              )}
             >
-              {product.category === 'luiers'
-                ? 'Luiers'
-                : product.category === 'luierbroekjes'
-                  ? 'Luierbroekjes'
-                  : 'Billendoekjes'}
+              {publicCategoryBySlug[product.category].name}
             </a>
           </li>
           <li aria-current="page">{name}</li>
@@ -326,13 +328,7 @@ export function ProductPageContent({ product }: { product: PublicProduct }) {
         </p>
         <h1>{name}</h1>
         <p className="lede">
-          {product.availabilityState === 'current'
-            ? 'Vergelijk actuele Offers voor precies dit Product.'
-            : product.availabilityState === 'degraded'
-              ? `${publicAvailabilityLabel.degraded}. Identiteit en historie blijven zichtbaar.`
-              : product.availabilityState === 'unavailable'
-                ? `${publicAvailabilityLabel.unavailable} volgens de retailer. Historie blijft zichtbaar.`
-                : `${publicAvailabilityLabel.no_current_offer} binnen 48 uur. Historie blijft zichtbaar.`}
+          {publicAvailabilityLede(product.availabilityState)}
         </p>
       </header>
       <AvailabilityNotice product={product} />
@@ -360,7 +356,9 @@ export function ProductPageContent({ product }: { product: PublicProduct }) {
               {alternative.bestOffer ? (
                 <span>{formatUnitPrice(alternative.bestOffer)}</span>
               ) : (
-                <span>{browseStateLabel(alternative.availabilityState)}</span>
+                <span>
+                  {cardAvailabilityLabel(alternative.availabilityState)}
+                </span>
               )}
             </li>
           ))}

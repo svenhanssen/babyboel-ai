@@ -4,7 +4,6 @@ import {
   publicSiteOrigin,
   publicRetailerCoverage,
   publicTrustUpdatedOn,
-  type PublicCoverageStatus,
 } from './trust-identity'
 
 export interface TrustPageContent {
@@ -27,12 +26,6 @@ export const trustPageLinks = [
   { href: '/privacy', label: 'Privacy' },
   { href: '/contact', label: 'Contact' },
 ] as const
-
-const coverageStatusLabel: Record<PublicCoverageStatus, string> = {
-  actief: 'actief',
-  'tijdelijk gepauzeerd': 'tijdelijk gepauzeerd',
-  'nog niet actief': 'nog niet actief',
-}
 
 export const trustPages: Record<TrustPageContent['slug'], TrustPageContent> = {
   methode: {
@@ -81,7 +74,7 @@ export const trustPages: Record<TrustPageContent['slug'], TrustPageContent> = {
       {
         title: 'Directe bestemming',
         paragraphs: [
-          'Je volgt een directe link naar de exacte Listing en verkoper, in hetzelfde tabblad. Als affiliate-toeschrijving is goedgekeurd, wijst de actie naar het goedgekeurde netwerkadres met diezelfde geverifieerde bestemming erin. Ontbreekt of faalt die configuratie, dan gebruik je dezelfde gewone Listing-bestemming. Er is geen tussenpagina of Babyboel-doorverwijsservice.',
+          'Je volgt een directe link naar de exacte Listing en verkoper, in hetzelfde tabblad. Als het Affiliate program voor die retailer aanstaat, wijst de actie naar het goedgekeurde netwerkadres met diezelfde geverifieerde bestemming erin. Ontbreekt of faalt die configuratie, dan gebruik je dezelfde gewone Listing-bestemming. Er is geen tussenpagina of Babyboel-doorverwijsservice.',
         ],
       },
       {
@@ -148,7 +141,7 @@ export const trustPages: Record<TrustPageContent['slug'], TrustPageContent> = {
       {
         title: 'Grondslagen en beveiliging',
         paragraphs: [
-          'Cloudflare-verzoeken en beveiligingslogboeken verwerken we op grond van gerechtvaardigd belang (AVG artikel 6 lid 1 sub f) om de site te leveren en te beveiligen. E-mailcontact verwerken we om je bericht te behandelen (AVG artikel 6 lid 1 sub b of sub f, afhankelijk van de aard van het verzoek). Aggregaat intentietellingen zijn geen persoonsgegevens: geen bezoeker-, sessie- of apparaatkenmerk, IP-adres of user-agent. Een optionele thema-afwijking blijft alleen op je apparaat.',
+          'Cloudflare-verzoeken en beveiligingslogboeken verwerken we op grond van gerechtvaardigd belang (AVG artikel 6 lid 1 sub f) om de site te leveren en te beveiligen. E-mailcontact verwerken we om je bericht te behandelen (AVG artikel 6 lid 1 sub b of sub f, afhankelijk van de aard van het verzoek). Aggregaat intentietellingen gebruiken we als ruwe productrichting; ze bevatten geen persoonsgegevens, dus AVG artikel 6 is daarop niet van toepassing. Een optionele thema-afwijking blijft alleen op je apparaat.',
           'We beperken toegang tot beheer, zetten geen trackingcookies voor eigen analytics, en bewaren geen bezoekersprofiel. Verzoeken lopen via Cloudflare. Geheimen horen in Cloudflare secrets, niet in deze brontekst.',
         ],
       },
@@ -234,7 +227,7 @@ export function TrustPage({ page }: { page: TrustPageContent }) {
                 <div key={retailer.name}>
                   <dt>{retailer.name}</dt>
                   <dd>
-                    <strong>{coverageStatusLabel[retailer.status]}</strong>
+                    <strong>{retailer.status}</strong>
                     <span>{retailer.detail}</span>
                   </dd>
                 </div>

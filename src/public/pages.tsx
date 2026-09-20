@@ -1,6 +1,7 @@
 import { redirect } from '@tanstack/react-router'
 
 import {
+  categoryBrowsePath,
   listPublicProducts,
   publicAvailabilityLabel,
   publicFixtureNow,
@@ -35,9 +36,7 @@ export function normalizedSizeToRoute(value: string) {
 }
 
 export function categoryPath(category: PublicCategory, size?: string | null) {
-  return size
-    ? `/${category.slug}/maat-${normalizedSizeToRoute(size)}`
-    : `/${category.slug}`
+  return categoryBrowsePath(category.slug, size)
 }
 
 export function resolveSizeBrowse(
@@ -75,7 +74,7 @@ export function sizeBrowseHead(category: PublicCategory, size = '', page = 1) {
         content:
           result.total === 0
             ? `Geen Products voor ${category.name.toLowerCase()} maat ${size} in deze vergelijking.`
-            : `Vergelijk actuele Offers voor ${category.name.toLowerCase()} maat ${size}.`,
+            : `Vergelijk actuele Offers voor ${category.name.toLowerCase()} maat ${size}${pageLabel}.`,
       },
       ...(result.total === 0
         ? [{ name: 'robots', content: 'noindex, follow' }]

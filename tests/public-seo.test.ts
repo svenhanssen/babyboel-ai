@@ -7,14 +7,13 @@ import {
   publicFixtureNow,
 } from '../src/public/catalog'
 import { sizeBrowseHead } from '../src/public/pages'
+import { listIndexablePublicPaths, robotsTxt } from '../src/public/seo'
 import {
   homeStructuredData,
-  listIndexablePublicPaths,
   productPageHead,
   productStructuredData,
-  publicSiteOrigin,
-  robotsTxt,
-} from '../src/public/seo'
+} from '../src/public/structured-data'
+import { publicSiteOrigin } from '../src/public/trust-identity'
 
 describe('public SEO surfaces', () => {
   it('lists only canonical indexable landings, Products, and trust pages', () => {
@@ -45,7 +44,6 @@ describe('public SEO surfaces', () => {
         'User-agent: *',
         'Allow: /',
         'Disallow: /admin',
-        'Disallow: /vinden',
         `Sitemap: ${publicSiteOrigin}/sitemap.xml`,
         '',
       ].join('\n'),
@@ -146,6 +144,14 @@ describe('public SEO surfaces', () => {
     })
     expect(empty.total).toBe(0)
     expect(listIndexablePublicPaths()).not.toContain('/luiers/maat-1')
+    expect(sizeBrowseHead(publicCategoryBySlug.luiers, '4+', 2).meta).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'description',
+          content: 'Vergelijk actuele Offers voor luiers maat 4+ — pagina 2.',
+        },
+      ]),
+    )
     expect(sizeBrowseHead(publicCategoryBySlug.luiers, '1').meta).toEqual(
       expect.arrayContaining([
         { name: 'robots', content: 'noindex, follow' },

@@ -22,28 +22,26 @@ export interface OutboundAction {
   referrerPolicy: 'strict-origin-when-cross-origin'
 }
 
+const fixtureNetworkProgram = {
+  trackingOrigin: 'https://partners.example',
+  path: '/click',
+  destinationParam: 'destination',
+  subIdParam: 'subid',
+  allowedHosts: ['partners.example'],
+  allowedParams: ['destination', 'camref', 'subid'],
+  extraParams: { camref: 'babyboel-fixture' },
+} as const satisfies Omit<AffiliateProgramConfig, 'enabled' | 'termsReference'>
+
 export const affiliatePrograms = {
   plein: {
+    ...fixtureNetworkProgram,
     enabled: true,
-    termsReference: 'fixture-plein-affiliate-approval',
-    trackingOrigin: 'https://partners.example',
-    path: '/click',
-    destinationParam: 'destination',
-    subIdParam: 'subid',
-    allowedHosts: ['partners.example'],
-    allowedParams: ['destination', 'camref', 'subid'],
-    extraParams: { camref: 'babyboel-fixture' },
+    termsReference: 'fixture-plein-affiliate-program-terms',
   },
   wehkamp: {
+    ...fixtureNetworkProgram,
     enabled: false,
     termsReference: 'fixture-wehkamp-affiliate-not-enabled',
-    trackingOrigin: 'https://partners.example',
-    path: '/click',
-    destinationParam: 'destination',
-    subIdParam: 'subid',
-    allowedHosts: ['partners.example'],
-    allowedParams: ['destination', 'camref', 'subid'],
-    extraParams: { camref: 'babyboel-fixture' },
   },
 } as const satisfies Record<string, AffiliateProgramConfig>
 
@@ -137,4 +135,17 @@ export function resolveOutboundAction(input: {
 
 export function retailerSlugFromName(name: string) {
   return name.trim().toLocaleLowerCase('nl-NL')
+}
+
+export function outboundIntentPayload(offer: {
+  retailerName: string
+  listingId: string
+  action: Pick<OutboundAction, 'affiliateLink'>
+}) {
+  return {
+    retailer: retailerSlugFromName(offer.retailerName),
+    listing: offer.listingId,
+    placement: outboundPlacementCodes[0],
+    affiliateLink: offer.action.affiliateLink,
+  }
 }

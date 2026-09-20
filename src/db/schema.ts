@@ -706,7 +706,7 @@ export const outboundIntentCounts = sqliteTable(
     retailerSlug: text('retailer_slug').notNull(),
     listingKey: text('listing_key').notNull(),
     placementCode: text('placement_code').notNull(),
-    affiliate: boolean('affiliate').notNull(),
+    affiliateLink: boolean('affiliate_link').notNull(),
     count: integer('count').notNull(),
   },
   (table) => [
@@ -715,15 +715,15 @@ export const outboundIntentCounts = sqliteTable(
       table.retailerSlug,
       table.listingKey,
       table.placementCode,
-      table.affiliate,
+      table.affiliateLink,
     ),
     check(
       'outbound_intent_counts_day_check',
       sql`${table.utcDay} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`,
     ),
     check(
-      'outbound_intent_counts_affiliate_check',
-      sql`${table.affiliate} IN (0, 1)`,
+      'outbound_intent_counts_affiliate_link_check',
+      sql`${table.affiliateLink} IN (0, 1)`,
     ),
     check('outbound_intent_counts_count_check', sql`${table.count} > 0`),
   ],

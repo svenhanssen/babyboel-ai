@@ -8,7 +8,7 @@ const intentSchema = z
     retailer: z.string().min(1).max(40),
     listing: z.string().min(1).max(120),
     placement: z.enum(outboundPlacementCodes),
-    affiliate: z.boolean(),
+    affiliateLink: z.boolean(),
   })
   .strict()
 
@@ -16,7 +16,7 @@ const maximumIntentBodyBytes = 1024
 
 const utcDay = (now: number) => new Date(now).toISOString().slice(0, 10)
 
-const jsonHeaders = {
+const errorHeaders = {
   'cache-control': 'no-store',
   'content-type': 'text/plain; charset=utf-8',
 }
@@ -52,14 +52,14 @@ export async function handleOutboundIntent(
   if (request.method !== 'POST') {
     return new Response('Method Not Allowed', {
       status: 405,
-      headers: { ...jsonHeaders, Allow: 'POST' },
+      headers: { ...errorHeaders, Allow: 'POST' },
     })
   }
 
   const origin = request.headers.get('origin')
   const requestOrigin = new URL(request.url).origin
   if (origin !== requestOrigin) {
-    return new Response('Forbidden', { status: 403, headers: jsonHeaders })
+    return new Response('Forbidden', { status: 403, headers: errorHeaders })
   }
 
   const payload = await readBoundedJson(request)
@@ -69,15 +69,15 @@ export async function handleOutboundIntent(
     !isKnownPublicRetailerSlug(parsed.data.retailer) ||
     !isKnownPublicListing(parsed.data.listing)
   ) {
-    return new Response('Bad Request', { status: 400, headers: jsonHeaders })
+    return new Response('Bad Request', { status: 400, headers: errorHeaders })
   }
 
   await database
     .prepare(
       `INSERT INTO outbound_intent_counts (
-         utc_day, retailer_slug, listing_key, placement_code, affiliate, count
+         utc_day, retailer_slug, listing_key, placement_code, affiliate_link, count
        ) VALUES (?, ?, ?, ?, ?, 1)
-       ON CONFLICT(utc_day, retailer_slug, listing_key, placement_code, affiliate)
+       ON CONFLICT(utc_day, retailer_slug, listing_key, placement_code, affiliate_link)
        DO UPDATE SET count = count + 1`,
     )
     .bind(
@@ -85,7 +85,7 @@ export async function handleOutboundIntent(
       parsed.data.retailer,
       parsed.data.listing,
       parsed.data.placement,
-      parsed.data.affiliate ? 1 : 0,
+      parsed.data.affiliateLink ? 1 : 0,
     )
     .run()
 
