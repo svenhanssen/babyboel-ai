@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { publicCategories } from '../public/catalog'
 import { normalizedSizeToRoute } from '../public/pages'
+import { homeStructuredData, publicSiteOrigin } from '../public/seo'
 import { PriceHistory } from '../ui/price-history'
 
 const finderSizes = [...new Set(publicCategories.flatMap(({ sizes }) => sizes))]
@@ -15,8 +16,19 @@ export const Route = createFileRoute('/')({
         content:
           'Vind en vergelijk actuele Nederlandse Offers voor luiers, luierbroekjes en billendoekjes.',
       },
+      {
+        property: 'og:title',
+        content: 'Babyboel — vergelijk actuele luierprijzen',
+      },
+      {
+        property: 'og:description',
+        content:
+          'Vind en vergelijk actuele Nederlandse Offers voor luiers, luierbroekjes en billendoekjes.',
+      },
+      { property: 'og:url', content: `${publicSiteOrigin}/` },
+      { property: 'og:locale', content: 'nl_NL' },
     ],
-    links: [{ rel: 'canonical', href: 'https://babyboel.nl/' }],
+    links: [{ rel: 'canonical', href: `${publicSiteOrigin}/` }],
   }),
   component: Home,
 })
@@ -24,13 +36,26 @@ export const Route = createFileRoute('/')({
 function Home() {
   return (
     <main className="page" id="main" tabIndex={-1}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(homeStructuredData()),
+        }}
+      />
       <section className="hero" aria-labelledby="home-heading">
         <div>
           <p className="eyebrow">Nederlandse prijsvergelijker</p>
-          <h1 id="home-heading">Vind een passende actuele aanbieding</h1>
+          <h1 id="home-heading">Vind een passende actuele Offer</h1>
           <p className="lede">
             Vergelijk luiers, luierbroekjes en doekjes op actuele prijs,
-            voorwaarden en controleerbare productgegevens.
+            voorwaarden en controleerbare productgegevens. Babyboel is een
+            Nederlandse prijsvergelijker, geen winkel. Sommige retailerlinks
+            kunnen commissie opleveren zonder de rangschikking te veranderen.
+          </p>
+          <p>
+            <a href="/methode">Methode</a>
+            {' · '}
+            <a href="/verdienmodel">Verdienmodel</a>
           </p>
           <a className="button" href="#finder">
             Start met vergelijken

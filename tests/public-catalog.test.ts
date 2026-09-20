@@ -83,6 +83,16 @@ describe('fixture-backed public catalog', () => {
     expect(product?.degradedRetailers).toEqual(['Wehkamp'])
   })
 
+  it('keeps retailer-reported unavailability distinct from stale prices', () => {
+    const product = getPublicProduct(
+      'zacht-start-reis-maat-5-p027',
+      publicFixtureNow,
+    )
+
+    expect(product?.availabilityState).toBe('unavailable')
+    expect(product?.offers.primary).toEqual([])
+  })
+
   it('rejects impossible pages and mismatched route sizes', () => {
     expect(() =>
       listPublicProducts({

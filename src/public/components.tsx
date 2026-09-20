@@ -1,10 +1,15 @@
 import { ExternalLink } from 'lucide-react'
 
 import { PriceHistory } from '../ui/price-history'
-import type {
-  PublicOfferView,
-  PublicProduct,
-  PublicProductSummary,
+import { retailerSlugFromName } from './affiliate'
+import {
+  productName,
+  publicAvailabilityLabel,
+  publicFixtureNow,
+  type PublicAvailabilityState,
+  type PublicOfferView,
+  type PublicProduct,
+  type PublicProductSummary,
 } from './catalog'
 import { trustPageLinks } from './trust-page'
 
@@ -26,31 +31,31 @@ export function formatUnitPrice(offer: PublicOfferView) {
   return `${formatMoney(offer.payableAmountMinor / offer.totalUnits)} per stuk`
 }
 
-export function productName(product: {
-  brand: string
-  line: string
-  variant: string
-  normalizedSize: string | null
-}) {
-  return [
-    product.brand,
-    product.line,
-    product.variant,
-    product.normalizedSize ? `maat ${product.normalizedSize}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ')
-}
-
 function Freshness({ confirmedAt }: { confirmedAt: number }) {
+  const hoursAgo = Math.max(
+    0,
+    Math.round((publicFixtureNow - confirmedAt) / (60 * 60 * 1_000)),
+  )
+  const relative =
+    hoursAgo === 0
+      ? 'zojuist'
+      : hoursAgo === 1
+        ? '1 uur geleden'
+        : `${hoursAgo} uur geleden`
   return (
     <span>
-      Bevestigd{' '}
+      Bevestigd {relative},{' '}
       <time dateTime={new Date(confirmedAt).toISOString()}>
         {dateTimeFormatter.format(confirmedAt)}
       </time>
     </span>
   )
+}
+
+function browseStateLabel(state: PublicAvailabilityState) {
+  return state === 'current'
+    ? publicAvailabilityLabel.no_current_offer
+    : publicAvailabilityLabel[state]
 }
 
 export function ProductCard({ product }: { product: PublicProductSummary }) {
@@ -79,7 +84,7 @@ export function ProductCard({ product }: { product: PublicProductSummary }) {
           <Freshness confirmedAt={offer.confirmedAt} />
         </div>
       ) : (
-        <p className="notice">Geen actuele prijs</p>
+        <p className="notice">{browseStateLabel(product.availabilityState)}</p>
       )}
       <a
         className="button button--secondary"
@@ -128,7 +133,26 @@ function OfferRow({
           tijdstip bevestigd.
         </p>
       </details>
-      <a className="button" href={offer.outboundDestination}>
+      <a
+        className="button"
+        href={offer.action.href}
+        rel={offer.action.rel}
+        referrerPolicy={offer.action.referrerPolicy}
+        onClick={() => {
+          void fetch('/intent', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              retailer: retailerSlugFromName(offer.retailerName),
+              listing: offer.listingId,
+              placement: 'product_offer',
+              affiliate: offer.action.affiliateLink,
+            }),
+            keepalive: true,
+            mode: 'same-origin',
+          }).catch(() => undefined)
+        }}
+      >
         Bekijk bij {offer.retailerName}
         <ExternalLink aria-hidden="true" size={18} />
       </a>
@@ -138,7 +162,6 @@ function OfferRow({
 
 export function OfferComparison({ product }: { product: PublicProduct }) {
   const { primary, restricted, bestWithoutMinimum } = product.offers
-  if (primary.length === 0 && restricted.length === 0) return null
 
   return (
     <div className="offer-comparison">
@@ -173,11 +196,62 @@ export function OfferComparison({ product }: { product: PublicProduct }) {
           </ul>
         </section>
       )}
-      <p className="affiliate-note">
-        Babyboel is niet de verkoper. Een retailerlink kan commissie opleveren
-        zonder de rangschikking of prijs te veranderen.
-      </p>
+      <OfferDisclosure product={product} />
     </div>
+  )
+}
+
+function OfferDisclosure({ product }: { product: PublicProduct }) {
+  const newestConfirmation = [
+    ...product.offers.primary,
+    ...product.offers.restricted,
+  ]
+    .map((offer) => offer.confirmedAt)
+    .sort((left, right) => right - left)[0]
+  const lowestClaim =
+    product.availabilityState === 'current' && product.offers.primary[0]
+      ? `Laagste prijs per stuk binnen deze vergelijking: ${formatUnitPrice(product.offers.primary[0])}.`
+      : null
+
+  return (
+    <aside
+      className="affiliate-note"
+      aria-label="Toelichting bij deze vergelijking"
+    >
+      {lowestClaim && <p>{lowestClaim}</p>}
+      <p>
+        {newestConfirmation ? (
+          <>
+            Laatste bevestiging{' '}
+            <time dateTime={new Date(newestConfirmation).toISOString()}>
+              {dateTimeFormatter.format(newestConfirmation)}
+            </time>
+            . Een Offer telt alleen mee als prijs, voorwaarden, beschikbaarheid
+            en bestemming binnen 48 uur zijn bevestigd.
+          </>
+        ) : (
+          <>
+            Een Offer telt alleen mee als prijs, voorwaarden, beschikbaarheid en
+            bestemming binnen 48 uur zijn bevestigd.
+          </>
+        )}
+      </p>
+      <p>
+        Rangschikking gebruikt de exacte universele stukprijs, inclusief een
+        verplicht aantal verpakkingen. Verzending zit niet in die stukprijs en
+        kan per bestelling verschillen.
+      </p>
+      <p>
+        Babyboel kan commissie ontvangen van sommige retailers. Commissie
+        verandert niet welke Offers worden opgenomen of hoe ze rangschikken.{' '}
+        <a href="/verdienmodel">Verdienmodel</a>
+      </p>
+      <p>
+        Controleer bij de retailer de uiteindelijke prijs, beschikbaarheid,
+        aankoopvoorwaarden, levering en betaling voordat je bestelt.{' '}
+        <a href="/methode">Methode</a>
+      </p>
+    </aside>
   )
 }
 
@@ -186,20 +260,32 @@ function AvailabilityNotice({ product }: { product: PublicProduct }) {
   if (product.availabilityState === 'degraded') {
     return (
       <div className="notice notice--warning" role="status">
-        <strong>Vergelijking tijdelijk beperkt</strong>
+        <strong>{publicAvailabilityLabel.degraded}</strong>
         <span>
-          We konden de actuele aanbiedingen van{' '}
-          {product.degradedRetailers.join(', ')} tijdelijk niet volledig
-          controleren. Daarom tonen we geen onbevestigde prijs of retaileractie.
+          We konden de actuele Offers van {product.degradedRetailers.join(', ')}{' '}
+          tijdelijk niet verifiëren. Daarom tonen we geen onbevestigde prijs of
+          retaileractie.
+        </span>
+      </div>
+    )
+  }
+  if (product.availabilityState === 'unavailable') {
+    return (
+      <div className="notice notice--warning" role="status">
+        <strong>{publicAvailabilityLabel.unavailable}</strong>
+        <span>
+          De retailer meldt dat dit Product hier niet meer te koop is. Eerdere
+          waarnemingen blijven zichtbaar. We zeggen uitverkocht alleen als de
+          retailer dat zelf zo noemt.
         </span>
       </div>
     )
   }
   return (
     <div className="notice notice--warning" role="status">
-      <strong>Geen actuele aanbieding</strong>
+      <strong>{publicAvailabilityLabel.no_current_offer}</strong>
       <span>
-        Er is binnen 48 uur geen beschikbare aanbieding bevestigd. Eerdere
+        Er is binnen 48 uur geen beschikbare Offer bevestigd. Eerdere
         waarnemingen blijven hieronder zichtbaar, maar zijn geen actuele prijs.
       </span>
     </div>
@@ -240,7 +326,13 @@ export function ProductPageContent({ product }: { product: PublicProduct }) {
         </p>
         <h1>{name}</h1>
         <p className="lede">
-          Vergelijk actuele aankoopmogelijkheden voor precies dit Product.
+          {product.availabilityState === 'current'
+            ? 'Vergelijk actuele Offers voor precies dit Product.'
+            : product.availabilityState === 'degraded'
+              ? `${publicAvailabilityLabel.degraded}. Identiteit en historie blijven zichtbaar.`
+              : product.availabilityState === 'unavailable'
+                ? `${publicAvailabilityLabel.unavailable} volgens de retailer. Historie blijft zichtbaar.`
+                : `${publicAvailabilityLabel.no_current_offer} binnen 48 uur. Historie blijft zichtbaar.`}
         </p>
       </header>
       <AvailabilityNotice product={product} />
@@ -268,7 +360,7 @@ export function ProductPageContent({ product }: { product: PublicProduct }) {
               {alternative.bestOffer ? (
                 <span>{formatUnitPrice(alternative.bestOffer)}</span>
               ) : (
-                <span>Geen actuele prijs</span>
+                <span>{browseStateLabel(alternative.availabilityState)}</span>
               )}
             </li>
           ))}

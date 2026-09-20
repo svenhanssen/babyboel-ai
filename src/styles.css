@@ -539,6 +539,36 @@ p {
   font-size: 0.875rem;
 }
 
+.affiliate-note p {
+  margin-block: var(--space-2);
+}
+
+.fine-print {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.coverage-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.coverage-list div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.coverage-list dt {
+  font-weight: 600;
+}
+
+.coverage-list dd {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--text-muted);
+}
+
 .notice--warning {
   border-color: var(--warning);
 }

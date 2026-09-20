@@ -699,6 +699,36 @@ export const auditLog = sqliteTable(
   ],
 )
 
+export const outboundIntentCounts = sqliteTable(
+  'outbound_intent_counts',
+  {
+    utcDay: text('utc_day').notNull(),
+    retailerSlug: text('retailer_slug').notNull(),
+    listingKey: text('listing_key').notNull(),
+    placementCode: text('placement_code').notNull(),
+    affiliate: boolean('affiliate').notNull(),
+    count: integer('count').notNull(),
+  },
+  (table) => [
+    uniqueIndex('outbound_intent_counts_identity_unique').on(
+      table.utcDay,
+      table.retailerSlug,
+      table.listingKey,
+      table.placementCode,
+      table.affiliate,
+    ),
+    check(
+      'outbound_intent_counts_day_check',
+      sql`${table.utcDay} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`,
+    ),
+    check(
+      'outbound_intent_counts_affiliate_check',
+      sql`${table.affiliate} IN (0, 1)`,
+    ),
+    check('outbound_intent_counts_count_check', sql`${table.count} > 0`),
+  ],
+)
+
 export const systemChecks = sqliteTable(
   'system_checks',
   {

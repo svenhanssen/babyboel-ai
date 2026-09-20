@@ -10,7 +10,8 @@ import {
   publicCategoryBySlug,
   publicFixtureNow,
 } from '../public/catalog'
-import { BrowsePage } from '../public/pages'
+import { BrowsePage, throwIfCanonicalPageOne } from '../public/pages'
+import { publicSiteOrigin } from '../public/trust-identity'
 
 const category = publicCategoryBySlug.billendoekjes
 const searchSchema = z.object({
@@ -21,6 +22,7 @@ export const Route = createFileRoute('/billendoekjes')({
   validateSearch: searchSchema,
   search: { middlewares: [stripSearchParams({ page: 1 })] },
   loaderDeps: ({ search }) => search,
+  beforeLoad: ({ location }) => throwIfCanonicalPageOne(location),
   loader: ({ deps }) => {
     const firstPage = listPublicProducts({
       category: category.slug,
@@ -47,7 +49,7 @@ export const Route = createFileRoute('/billendoekjes')({
     links: [
       {
         rel: 'canonical',
-        href: `https://babyboel.nl/billendoekjes${loaderData && loaderData.page > 1 ? `?page=${loaderData.page}` : ''}`,
+        href: `${publicSiteOrigin}/billendoekjes${loaderData && loaderData.page > 1 ? `?page=${loaderData.page}` : ''}`,
       },
     ],
   }),
