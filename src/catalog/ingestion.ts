@@ -337,7 +337,7 @@ export async function ingestValidatedOfferObservation(
     .prepare(
       `UPDATE listings
        SET latest_observation_id = ?, confirmed_at = ?, availability = ?,
-         outbound_destination = ?, updated_at = ?
+         outbound_destination = ?, miss_count = 0, updated_at = ?
        WHERE id = ? AND (confirmed_at IS NULL OR confirmed_at < ?)`,
     )
     .bind(
@@ -819,4 +819,127 @@ async function applyListingMatchDecision(
         : ('review' as const),
     version: input.decidedAt,
   }
+}
+
+const observedListingSchema = z.object({
+  listingId: uuidV7Schema,
+  retailerId: uuidV7Schema,
+  retailerSku: z.string().min(1).max(500),
+  sourceTitle: z.string().min(1).max(500),
+  outboundDestination: z.url().max(2_000),
+  availability: z.enum(['available', 'unavailable', 'unknown']),
+  observedAt: timestampSchema,
+})
+
+export async function upsertObservedListing(
+  database: Env['DB'],
+  untrustedInput: z.input<typeof observedListingSchema>,
+) {
+  const input = observedListingSchema.parse(untrustedInput)
+  const existing = await database
+    .prepare(
+      `SELECT id, updated_at AS updatedAt
+       FROM listings
+       WHERE retailer_id = ? AND channel = 'nationwide_online'
+         AND retailer_sku = ?`,
+    )
+    .bind(input.retailerId, input.retailerSku)
+    .first<{ id: string; updatedAt: number }>()
+  if (existing) {
+    if (input.observedAt > existing.updatedAt) {
+      await database
+        .prepare(
+          `UPDATE listings
+           SET source_title = ?, outbound_destination = ?, availability = ?,
+             updated_at = ?
+           WHERE id = ? AND updated_at = ?`,
+        )
+        .bind(
+          input.sourceTitle,
+          input.outboundDestination,
+          input.availability,
+          input.observedAt,
+          existing.id,
+          existing.updatedAt,
+        )
+        .run()
+      return {
+        listingId: existing.id,
+        created: false as const,
+        updatedAt: input.observedAt,
+      }
+    }
+    return {
+      listingId: existing.id,
+      created: false as const,
+      updatedAt: existing.updatedAt,
+    }
+  }
+
+  await database
+    .prepare(
+      `INSERT INTO listings (
+        id, retailer_id, package_id, retailer_sku, channel, seller_retailer_id,
+        source_title, outbound_destination, availability, match_status,
+        miss_count, created_at, updated_at
+      ) VALUES (?, ?, NULL, ?, 'nationwide_online', ?, ?, ?, ?, 'unmatched',
+        0, ?, ?)`,
+    )
+    .bind(
+      input.listingId,
+      input.retailerId,
+      input.retailerSku,
+      input.retailerId,
+      input.sourceTitle,
+      input.outboundDestination,
+      input.availability,
+      input.observedAt,
+      input.observedAt,
+    )
+    .run()
+  return {
+    listingId: input.listingId,
+    created: true as const,
+    updatedAt: input.observedAt,
+  }
+}
+
+const completeTraversalMissSchema = z.object({
+  retailerId: uuidV7Schema,
+  presentListingKeys: z.array(z.string().min(1).max(500)).max(5_000),
+  observedAt: timestampSchema,
+})
+
+export async function applyCompleteTraversalMisses(
+  database: Env['DB'],
+  untrustedInput: z.input<typeof completeTraversalMissSchema>,
+) {
+  const input = completeTraversalMissSchema.parse(untrustedInput)
+  const present = [...new Set(input.presentListingKeys)]
+  const absentClause =
+    present.length === 0
+      ? ''
+      : `AND retailer_sku NOT IN (${present.map(() => '?').join(', ')})`
+  await database
+    .prepare(
+      `UPDATE listings
+       SET miss_count = miss_count + 1,
+         availability = CASE WHEN miss_count + 1 >= 2 THEN 'unavailable' ELSE availability END,
+         updated_at = ?
+       WHERE retailer_id = ? ${absentClause}`,
+    )
+    .bind(input.observedAt, input.retailerId, ...present)
+    .run()
+  await database
+    .prepare(
+      `UPDATE offers
+       SET availability = 'unavailable', updated_at = ?
+       WHERE availability <> 'unavailable'
+         AND listing_id IN (
+           SELECT id FROM listings
+           WHERE retailer_id = ? AND miss_count >= 2
+         )`,
+    )
+    .bind(input.observedAt, input.retailerId)
+    .run()
 }
