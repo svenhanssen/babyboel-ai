@@ -67,10 +67,17 @@ pnpm cf-typegen:check
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm test:browser
 ```
 
-Run all gates with `pnpm check`. Configuration validation fails if preview
-acquisition is not fixture-only or preview D1/R2 names match production.
+`pnpm check` is the full local gate, including Playwright browser tests. Install
+Chromium once with `pnpm exec playwright install chromium`. CI keeps that local
+behavior intact, but splits the work: the quality job runs `pnpm check:quality`
+without installing browser system dependencies, and a required browser-test job
+uses the Playwright Docker image that matches `@playwright/test` in the
+lockfile. Configuration validation fails if preview acquisition is not
+fixture-only, preview D1/R2 names match production, or the delivery workflow
+Playwright image and local check scripts drift from the lockfile.
 Migration validation checks Drizzle metadata and schema drift, strict tables,
 append-only observation/audit triggers, forward numbering, and application of
 all migrations to a fresh local D1 store.
@@ -149,7 +156,8 @@ containment, recovery, verification, and evidence-capture guidance.
 
 ## Delivery and rollback
 
-The delivery workflow runs the same quality commands as local development.
+The delivery workflow runs the same quality commands as local development,
+with browser tests in a dedicated required job.
 Pull requests build a fixture-only protected preview. Pushes to `main` serialize
 production releases, apply backward-compatible migrations before deployment,
 and run configured public/protected smoke checks.
